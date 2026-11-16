@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOHAR KISAN - User Management</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial;background:#edf5ed;color:#17351e}
+header{background:#176b35;color:white;padding:18px}
+main{max-width:750px;margin:auto;padding:15px}
+.card{background:white;padding:16px;border-radius:13px;margin:13px 0;box-shadow:0 2px 8px #0001}
+h2,h3{margin-top:0}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:#eaf5e9;padding:14px;border-radius:10px}
+.stat strong{display:block;font-size:25px;color:#176b35}
+.user{border-left:4px solid #176b35}
+button,input,select{padding:11px;border-radius:8px;border:1px solid #aaa;font-size:14px}
+button{background:#176b35;color:white;border:0;cursor:pointer}
+input{width:100%;margin:10px 0}
+small{color:#607360}
+#message{overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<header>
+<h2>🛡️ JOHAR KISAN</h2>
+<p>Admin User Management</p>
+</header>
+
+<main>
+<div class="card">
+<h3>👥 Users Overview</h3>
+<div class="stats">
+<div class="stat"><strong id="total">—</strong><small>Total Users</small></div>
+<div class="stat"><strong id="customers">—</strong><small>Customers</small></div>
+<div class="stat"><strong id="owners">—</strong><small>Owners</small></div>
+<div class="stat"><strong id="both">—</strong><small>Customer + Owner</small></div>
+</div>
+<p id="message">लोड हो रहा है...</p>
+<button id="refresh">↻ Refresh Users</button>
+</div>
+
+<div class="card">
+<h3>🔎 Search Users</h3>
+<input id="search" placeholder="नाम या Email खोजें">
+</div>
+
+<div id="users"></div>
+</main>
+
+<script type="module">
+import {supabase} from "./supabase-config.js";
+
+const message=document.getElementById("message");
+const usersBox=document.getElementById("users");
+let allUsers=[];
+
+async function checkAdmin(){
+ const {data,error}=await supabase.auth.getUser();
+
+ if(error||!data.user){
+  location.href="./auth.html";
+  return false;
+ }
+
+ const {data:profile,error:profileError}=await supabase
+ .from("profiles")
+ .select("is_admin")
+ .eq("id",data.user.id)
+ .maybeSingle();
+
+ if(profileError||profile?.is_admin!==true){
+  document.body.innerHTML="<h2 style='padding:25px'>Access Denied: केवल Admin के लिए।</h2>";
+  return false;
+ }
+
+ return true;
+}
+
+function roleText(user){
+ const roles=[];
+ if(user.is_customer)roles.push("Customer");
+ if(user.is_owner)roles.push("Owner");
+ return roles.join(" + ")||"कोई भूमिका नहीं";
+}
+
+function renderUsers(){
+ const query=document.getElementById("search").value.toLowerCase();
+ usersBox.innerHTML="";
+
+ const filtered=allUsers.filter(user=>
+  (user.full_name||"").toLowerCase().includes(query)
+ );
+
+ if(filtered.length===0){
+  usersBox.textContent="कोई User नहीं मिला।";
+  return;
+ }
+
+ filtered.forEach(user=>{
+  const card=document.createElement("div");
+  card.className="card user";
+
+  const name=document.createElement("h3");
+  name.textContent=user.full_name||"नाम उपलब्ध नहीं";
+
+  const role=document.createElement("p");
+  role.textContent="भूमिका: "+roleText(user);
+
+  const status=document.createElement("p");
+  status.textContent="Account Status: "+(user.account_status||"active");
+
+  const date=document.createElement("small");
+  date.textContent="User ID: "+user.id;
+
+  card.append(name,role,status,date);
+  usersBox.appendChild(card);
+ });
+}
+
+async function loadUsers(){
+ message.textContent="Users लोड हो रहे हैं...";
+ usersBox.innerHTML="";
+
+ const {data,error}=await supabase
+  .from("profiles")
+  .select("id,full_name,is_customer,is_owner,account_status")
+  .order("full_name");
+
+ if(error){
+  message.textContent="Error: "+error.message;
+  return;
+ }
+
+ allUsers=data||[];
+
+ const customers=allUsers.filter(u=>u.is_customer===true).length;
+ const owners=allUsers.filter(u=>u.is_owner===true).length;
+ const both=allUsers.filter(u=>u.is_customer===true&&u.is_owner===true).length;
+
+ document.getElementById("total").textContent=allUsers.length;
+ document.getElementById("customers").textContent=customers;
+ document.getElementById("owners").textContent=owners;
+ document.getElementById("both").textContent=both;
+
+ message.textContent="Users सफलतापूर्वक लोड हुए।";
+ renderUsers();
+}
+
+document.getElementById("refresh").onclick=loadUsers;
+document.getElementById("search").oninput=renderUsers;
+
+if(await checkAdmin()){
+ await loadUsers();
+}
+</script>
+</body>
+</html>
