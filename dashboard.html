@@ -36,6 +36,7 @@ footer{text-align:center;padding:20px;color:#66806a;font-size:12px}
 </header>
 
 <main>
+
 <div class="card" id="home">
 <h3>नमस्कार! स्वागत है 👋</h3>
 <p>आपका JOHAR KISAN Dashboard</p>
@@ -47,13 +48,21 @@ footer{text-align:center;padding:20px;color:#66806a;font-size:12px}
 <div class="card">
 <h3>Dashboard Menu</h3>
 <div class="menu-container">
+
 <button class="menu" onclick="showPage('home')"><span>🏠</span>Home</button>
+
 <button class="menu" onclick="location.href='./machines.html'"><span>🔎</span>मशीनें देखें</button>
+
 <button class="menu" onclick="location.href='./my-machines.html'"><span>🚜</span>My Machines</button>
+
 <button class="menu" onclick="location.href='./add-machine.html'"><span>➕</span>Add Machine</button>
+
 <button class="menu" onclick="location.href='./my-bookings.html'"><span>📋</span>My Bookings</button>
+
 <button class="menu" onclick="showPage('history')"><span>🕘</span>History</button>
+
 <button class="menu" onclick="showPage('profile')"><span>👤</span>Profile</button>
+
 <button class="menu" onclick="location.href='./support.html'"><span>🎧</span>Help & Support</button>
 
 <button class="menu" id="adminSupport" style="display:none"
@@ -61,7 +70,13 @@ onclick="location.href='./admin-support.html'">
 <span>🛡️</span>Admin Support
 </button>
 
+<button class="menu" id="adminUsers" style="display:none"
+onclick="location.href='./admin-users.html'">
+<span>👥</span>User Management
+</button>
+
 <button class="menu" id="logout"><span>🚪</span>Logout</button>
+
 </div>
 </div>
 
@@ -104,6 +119,7 @@ onclick="location.href='./admin-support.html'">
 <p>📍 गाँव और शहर के अनुसार सेवाएँ</p>
 <p>🛡️ सत्यापित Owner और मशीन की जानकारी</p>
 </div>
+
 </main>
 
 <footer>
@@ -124,6 +140,7 @@ const bookingCount=document.getElementById("bookingCount");
 const statsMessage=document.getElementById("statsMessage");
 const pageInfo=document.getElementById("pageInfo");
 const adminSupport=document.getElementById("adminSupport");
+const adminUsers=document.getElementById("adminUsers");
 
 let userId=null;
 let currentUser=null;
@@ -160,6 +177,7 @@ async function loadDashboard(){
 
  if(data?.is_admin===true){
   adminSupport.style.display="flex";
+  adminUsers.style.display="flex";
  }
 
  await loadStats();
@@ -215,6 +233,7 @@ document.getElementById("save").onclick=async()=>{
 };
 
 window.showPage=async function(page){
+
  if(page==="profile"){
   pageInfo.innerHTML=`
    <h3>👤 मेरी Profile</h3>
