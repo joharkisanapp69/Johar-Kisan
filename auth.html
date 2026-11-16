@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JOHAR KISAN - Login</title>
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #edf5ed;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+.card {
+  background: white;
+  padding: 25px;
+  border-radius: 18px;
+  width: 85%;
+  max-width: 380px;
+  box-shadow: 0 4px 18px #0002;
+}
+h2 { color: #176b35; text-align: center; }
+input, button {
+  width: 100%;
+  padding: 13px;
+  margin: 9px 0;
+  box-sizing: border-box;
+  border-radius: 8px;
+}
+input { border: 1px solid #bbb; }
+button {
+  background: #176b35;
+  color: white;
+  border: 0;
+  font-size: 16px;
+}
+.switch {
+  text-align: center;
+  color: #176b35;
+  cursor: pointer;
+}
+#message { text-align: center; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="card">
+<h2>🌾 JOHAR KISAN</h2>
+<h3 id="heading">Login</h3>
+
+<div id="nameBox" hidden>
+<input id="name" placeholder="पूरा नाम">
+</div>
+
+<input id="email" type="email" placeholder="Email Address">
+<input id="password" type="password" placeholder="Password">
+
+<button id="submit">Login</button>
+<p class="switch" id="toggle">नया अकाउंट बनाएँ? Signup</p>
+<p id="message"></p>
+</div>
+
+<script type="module">
+import { signup, login } from "./auth.js";
+
+let isSignup = false;
+
+const heading = document.getElementById("heading");
+const nameBox = document.getElementById("nameBox");
+const submit = document.getElementById("submit");
+const toggle = document.getElementById("toggle");
+const message = document.getElementById("message");
+
+toggle.onclick = () => {
+  isSignup = !isSignup;
+  heading.textContent = isSignup ? "Signup" : "Login";
+  submit.textContent = isSignup ? "Create Account" : "Login";
+  nameBox.hidden = !isSignup;
+  toggle.textContent = isSignup
+    ? "पहले से अकाउंट है? Login"
+    : "नया अकाउंट बनाएँ? Signup";
+  message.textContent = "";
+};
+
+submit.onclick = async () => {
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+  const name = document.getElementById("name").value.trim();
+
+  if (!email || !password || (isSignup && !name)) {
+    message.textContent = "सभी जानकारी भरें।";
+    return;
+  }
+
+  submit.disabled = true;
+  message.textContent = "कृपया प्रतीक्षा करें...";
+
+  try {
+    if (isSignup) {
+      const result = await signup(name, email, password);
+      message.textContent = result.session
+        ? "Signup सफल! अब Login कर सकते हैं।"
+        : "Signup सफल! Email में Confirmation Link चेक करें।";
+    } else {
+      await login(email, password);
+      message.textContent = "Login सफल! स्वागत है।";
+    }
+  } catch (error) {
+    message.textContent = error.message;
+  } finally {
+    submit.disabled = false;
+  }
+};
+</script>
+</body>
+</html>
