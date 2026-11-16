@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JOHAR KISAN - Add Machine</title>
+
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial;background:#edf5ed;color:#17351e}
@@ -16,15 +17,21 @@ input,select,textarea{
 width:100%;padding:12px;margin-top:6px;
 border:1px solid #ccd8cc;border-radius:8px;font-size:15px
 }
-button{width:100%;padding:13px;margin-top:18px;
+button{
+width:100%;padding:13px;margin-top:18px;
 border:0;border-radius:9px;background:#176b35;
-color:white;font-size:16px}
+color:white;font-size:16px
+}
 button:disabled{opacity:.6}
 #message{margin-top:14px;overflow-wrap:anywhere}
-#preview{width:100%;max-height:220px;object-fit:contain;
-margin-top:12px;border-radius:10px;display:none}
+#preview{
+width:100%;max-height:220px;object-fit:contain;
+margin-top:12px;border-radius:10px;display:none
+}
+.hint{font-size:13px;color:#607360}
 </style>
 </head>
+
 <body>
 
 <header>
@@ -34,6 +41,7 @@ margin-top:12px;border-radius:10px;display:none}
 
 <main>
 <div class="card">
+
 <h2>🚜 Add Machine</h2>
 
 <form id="machineForm">
@@ -42,15 +50,10 @@ margin-top:12px;border-radius:10px;display:none}
 <input id="name" required placeholder="जैसे Tractor">
 
 <label>मशीन की श्रेणी</label>
-<select id="category" required>
-<option value="">श्रेणी चुनें</option>
-<option>Tractor</option>
-<option>Harvester</option>
-<option>Rotavator</option>
-<option>JCB</option>
-<option>Thresher</option>
-<option>Other</option>
+<select id="category" required disabled>
+<option value="">Categories लोड हो रही हैं...</option>
 </select>
+<p class="hint">यह सूची Admin द्वारा बनाई गई Active Categories से आती है।</p>
 
 <label>मशीन का विवरण</label>
 <textarea id="description" placeholder="मशीन की जानकारी"></textarea>
@@ -87,10 +90,14 @@ accept="image/jpeg,image/png,image/webp">
 
 <img id="preview" alt="Machine photo preview">
 
-<button type="submit" id="saveBtn">मशीन सेव करें</button>
+<button type="submit" id="saveBtn" disabled>
+मशीन सेव करें
+</button>
+
 </form>
 
-<p id="message"></p>
+<p id="message">Categories लोड हो रही हैं...</p>
+
 </div>
 </main>
 
@@ -102,8 +109,53 @@ const message=document.getElementById("message");
 const saveBtn=document.getElementById("saveBtn");
 const photoInput=document.getElementById("photo");
 const preview=document.getElementById("preview");
+const categorySelect=document.getElementById("category");
 
 let selectedPhoto=null;
+let categoriesLoaded=false;
+
+async function loadCategories(){
+
+ categorySelect.disabled=true;
+ categorySelect.innerHTML=
+  '<option value="">Categories लोड हो रही हैं...</option>';
+
+ const {data,error}=await supabase
+  .from("categories")
+  .select("id,name")
+  .eq("is_active",true)
+  .order("name");
+
+ if(error){
+  categorySelect.innerHTML=
+   '<option value="">Categories लोड नहीं हुईं</option>';
+  message.textContent="Category Error: "+error.message;
+  return;
+ }
+
+ categorySelect.innerHTML=
+  '<option value="">श्रेणी चुनें</option>';
+
+ if(!data || data.length===0){
+  categorySelect.innerHTML=
+   '<option value="">अभी कोई Active Category नहीं है</option>';
+  message.textContent="Admin से Categories जोड़ने का अनुरोध करें।";
+  categoriesLoaded=false;
+  return;
+ }
+
+ data.forEach(category=>{
+  const option=document.createElement("option");
+  option.value=category.name;
+  option.textContent=category.name;
+  categorySelect.appendChild(option);
+ });
+
+ categorySelect.disabled=false;
+ categoriesLoaded=true;
+ saveBtn.disabled=false;
+ message.textContent="Categories सफलतापूर्वक लोड हो गईं।";
+}
 
 photoInput.addEventListener("change",()=>{
  selectedPhoto=photoInput.files[0]||null;
@@ -121,7 +173,7 @@ photoInput.addEventListener("change",()=>{
  }
 
  if(selectedPhoto.size>5*1024*1024){
-  message.textContent="फोटो का आकार 50 MB से कम रखें।";
+  message.textContent="फोटो का आकार 5 MB से कम रखें।";
   photoInput.value="";
   selectedPhoto=null;
   return;
@@ -133,20 +185,42 @@ photoInput.addEventListener("change",()=>{
 });
 
 form.addEventListener("submit",async(e)=>{
+
  e.preventDefault();
+
+ if(!categoriesLoaded || !categorySelect.value){
+  message.textContent="पहले Active Category चुनें।";
+  return;
+ }
+
  saveBtn.disabled=true;
  let uploadedPath=null;
 
  try{
+
   message.textContent="जानकारी सेव हो रही है...";
 
   const {data,error:authError}=await supabase.auth.getUser();
+
   if(authError)throw authError;
   if(!data.user)throw new Error("पहले Login करें।");
+
+  // Category को फिर से जाँचें ताकि Inactive
+  // Category चुनकर मशीन सेव न हो सके।
+  const {data:validCategory,error:categoryError}=await supabase
+   .from("categories")
+   .select("id")
+   .eq("name",categorySelect.value)
+   .eq("is_active",true)
+   .maybeSingle();
+
+  if(categoryError)throw categoryError;
+  if(!validCategory)throw new Error("यह Category अब Active नहीं है। Refresh करके दूसरी चुनें।");
 
   let photoUrl=null;
 
   if(selectedPhoto){
+
    message.textContent="फोटो Upload हो रही है...";
 
    const extension=selectedPhoto.name.split(".").pop().toLowerCase();
@@ -173,7 +247,7 @@ form.addEventListener("submit",async(e)=>{
   const row={
    owner_id:data.user.id,
    name:document.getElementById("name").value.trim(),
-   category:document.getElementById("category").value,
+   category:categorySelect.value,
    description:document.getElementById("description").value.trim(),
    price:Number(document.getElementById("price").value),
    price_unit:document.getElementById("price_unit").value,
@@ -192,20 +266,32 @@ form.addEventListener("submit",async(e)=>{
 
   if(error)throw error;
 
-  message.textContent="मशीन और उसकी फोटो सफलतापूर्वक सेव हो गई। Admin की जाँच के बाद लिस्टिंग दिखाई जाएगी।";
+  message.textContent=
+   "मशीन सफलतापूर्वक सेव हो गई। Admin की जाँच के बाद लिस्टिंग दिखाई जाएगी।";
+
   form.reset();
   selectedPhoto=null;
   preview.style.display="none";
 
  }catch(error){
+
   if(uploadedPath){
-   await supabase.storage.from("machine-photos").remove([uploadedPath]);
+   await supabase.storage
+    .from("machine-photos")
+    .remove([uploadedPath]);
   }
+
   message.textContent="त्रुटि: "+error.message;
+
  }finally{
-  saveBtn.disabled=false;
+  saveBtn.disabled=!categoriesLoaded;
  }
+
 });
+
+loadCategories();
 </script>
+
 </body>
 </html>
+
