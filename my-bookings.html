@@ -14,6 +14,7 @@ main{max-width:750px;margin:auto;padding:14px}
 button{padding:11px 14px;border:0;border-radius:8px;background:#176b35;color:white;cursor:pointer}
 button:disabled{opacity:.6}
 .tabs button{white-space:nowrap}
+.tabs button.active{background:#0b4320;outline:2px solid #8dbd91}
 .booking{border:1px solid #dce8dc;border-radius:10px;padding:13px;margin:13px 0}
 .booking h3{color:#176b35;overflow-wrap:anywhere}
 .info{font-size:14px;color:#526552;overflow-wrap:anywhere;line-height:1.5}
@@ -24,7 +25,6 @@ button:disabled{opacity:.6}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .call{display:inline-block;background:#176b35;color:white;padding:10px 13px;border-radius:8px;text-decoration:none;margin:5px 5px 5px 0}
 #message{overflow-wrap:anywhere;line-height:1.5}
-.notification{display:none;background:#e1f3df;border:1px solid #176b35}
 </style>
 </head>
 <body>
@@ -36,27 +36,29 @@ button:disabled{opacity:.6}
 
 <main>
 <div class="card">
+
 <button onclick="location.href='./dashboard.html'">← Dashboard</button>
 <h2>📋 Booking Dashboard</h2>
 
+<h3>Booking प्रकार</h3>
 <div class="tabs">
-<button onclick="loadBookings('all')">सभी</button>
-<button onclick="loadBookings('customer')">मेरी भेजी Booking</button>
-<button onclick="loadBookings('owner')">मेरी मशीन की Booking</button>
+<button data-view="all" onclick="loadBookings('all')">सभी</button>
+<button data-view="customer" onclick="loadBookings('customer')">मेरी भेजी Booking</button>
+<button data-view="owner" onclick="loadBookings('owner')">मेरी मशीन की Booking</button>
 <button class="secondary" onclick="loadBookings(currentView)">↻ Refresh</button>
 </div>
 
-<p id="message">बुकिंग लोड हो रही हैं...</p>
-
-<div id="notification" class="card notification">
-<strong>🔔 नई सूचना</strong>
-<p id="notificationText"></p>
-<button onclick="document.getElementById('notification').style.display='none'">
-ठीक है
-</button>
+<h3>Booking Status Filter</h3>
+<div class="tabs">
+<button data-view="pending" onclick="loadBookings('pending')">⏳ Pending</button>
+<button data-view="accepted" onclick="loadBookings('accepted')">✅ Accepted</button>
+<button data-view="completed" onclick="loadBookings('completed')">✔ Completed</button>
+<button data-view="cancelled" onclick="loadBookings('cancelled')">❌ Cancelled</button>
 </div>
 
+<p id="message">बुकिंग लोड हो रही हैं...</p>
 <div id="bookingList"></div>
+
 </div>
 </main>
 
@@ -78,77 +80,17 @@ const statusHindi={
  cancelled:"❌ Cancelled - रद्द"
 };
 
+function updateActiveButton(){
+ document.querySelectorAll("[data-view]").forEach(btn=>{
+  btn.classList.toggle("active",btn.dataset.view===currentView);
+ });
+}
+
 function addText(parent,value){
  const p=document.createElement("p");
  p.className="info";
  p.textContent=value;
  parent.appendChild(p);
-}
-
-function showNotification(text){
- const box=document.getElementById("notification");
- const notificationText=document.getElementById("notificationText");
-
- notificationText.textContent=text;
- box.style.display="block";
-}
-
-function startRealtime(){
-
- if(bookingChannel || !user)return;
-
- bookingChannel=supabase
-  .channel("johar-kisan-booking-notifications")
-  .on(
-   "postgres_changes",
-   {
-    event:"*",
-    schema:"public",
-    table:"bookings"
-   },
-   payload=>{
-
-    const b=payload.new||payload.old;
-
-    if(!b || !user)return;
-
-    if(
-     b.customer_id!==user.id &&
-     b.owner_id!==user.id
-    )return;
-
-    if(payload.eventType==="INSERT"){
-
-     if(b.owner_id===user.id){
-      showNotification("🔔 आपकी मशीन के लिए नई Booking आई है।");
-     }else{
-      showNotification("✅ आपकी Booking सफलतापूर्वक भेज दी गई है।");
-     }
-
-    }else if(payload.eventType==="UPDATE"){
-
-     const status=b.status||"";
-
-     showNotification(
-      "🔔 Booking का नया Status: "+
-      (statusHindi[status]||status)
-     );
-    }
-
-    loadBookings(currentView);
-   }
-  )
-  .subscribe(status=>{
-
-   if(status==="CHANNEL_ERROR"){
-    message.textContent=
-     "Realtime Notification कनेक्ट नहीं हुआ। Refresh करके देखें।";
-   }
-
-   if(status==="SUBSCRIBED"){
-    message.textContent="🔔 Live Booking Notifications चालू हैं।";
-   }
-  });
 }
 
 function addCallButton(parent,label,phone){
@@ -252,11 +194,61 @@ async function updateStatus(id,status,oldStatus){
  await loadBookings(currentView);
 }
 
+function startRealtime(){
+ if(bookingChannel||!user)return;
+
+ bookingChannel=supabase
+  .channel("johar-kisan-booking-notifications")
+  .on("postgres_changes",{
+   event:"*",
+   schema:"public",
+   table:"bookings"
+  },payload=>{
+
+   const b=payload.new||payload.old;
+   if(!b||!user)return;
+
+   if(b.customer_id!==user.id&&b.owner_id!==user.id)return;
+
+   if(payload.eventType==="INSERT"){
+    showNotification(b.owner_id===user.id
+     ?"🔔 आपकी मशीन के लिए नई Booking आई है।"
+     :"✅ आपकी Booking सफलतापूर्वक भेज दी गई है।");
+   }
+
+   if(payload.eventType==="UPDATE"){
+    showNotification("🔔 Booking का नया Status: "+
+     (statusHindi[b.status]||b.status||"-"));
+   }
+
+   loadBookings(currentView);
+  })
+  .subscribe();
+}
+
+function showNotification(text){
+ let box=document.getElementById("bookingNotice");
+
+ if(!box){
+  box=document.createElement("div");
+  box.id="bookingNotice";
+  box.className="card";
+  box.style.background="#e1f3df";
+  box.style.border="1px solid #176b35";
+  document.querySelector("main .card").insertBefore(
+   box,message
+  );
+ }
+
+ box.textContent=text;
+}
+
 async function loadBookings(view="all"){
  if(loading)return;
 
  loading=true;
  currentView=view;
+ updateActiveButton();
  list.innerHTML="";
  message.textContent="बुकिंग लोड हो रही हैं...";
 
@@ -270,8 +262,6 @@ async function loadBookings(view="all"){
   }
 
   user=authData.user;
-
-  // Login के बाद Live Notifications शुरू करें
   startRealtime();
 
   let query=supabase.from("bookings").select(`
@@ -283,6 +273,7 @@ async function loadBookings(view="all"){
    owner_contact_consent
   `).order("created_at",{ascending:false});
 
+  // Booking प्रकार और Status Filter
   if(view==="customer"){
    query=query.eq("customer_id",user.id);
   }else if(view==="owner"){
@@ -293,11 +284,15 @@ async function loadBookings(view="all"){
    );
   }
 
+  if(["pending","accepted","completed","cancelled"].includes(view)){
+   query=query.eq("status",view);
+  }
+
   const {data,error}=await query;
   if(error)throw error;
 
   if(!data||data.length===0){
-   message.textContent="अभी कोई Booking उपलब्ध नहीं है।";
+   message.textContent="इस Filter में कोई Booking उपलब्ध नहीं है।";
    return;
   }
 
@@ -365,30 +360,21 @@ async function loadBookings(view="all"){
     title.textContent="📞 Booking Contact";
     contact.appendChild(title);
 
-    addText(contact,
-     "आपकी सहमति: "+
-     ((b.customer_id===user.id
-       ?b.customer_contact_consent
-       :b.owner_contact_consent)?"दी गई है":"अभी नहीं दी गई है")
-    );
+    const myConsent=b.customer_id===user.id
+     ?b.customer_contact_consent
+     :b.owner_contact_consent;
 
     const otherConsent=b.customer_id===user.id
-      ?b.owner_contact_consent
-      :b.customer_contact_consent;
+     ?b.owner_contact_consent
+     :b.customer_contact_consent;
 
-    addText(contact,
-     "दूसरे व्यक्ति की सहमति: "+
-     (otherConsent?"दी गई है":"अभी बाकी है")
-    );
+    addText(contact,"आपकी सहमति: "+(myConsent?"दी गई है":"अभी नहीं दी गई है"));
+    addText(contact,"दूसरे व्यक्ति की सहमति: "+(otherConsent?"दी गई है":"अभी बाकी है"));
 
     const consentButton=document.createElement("button");
-    const myConsent=b.customer_id===user.id
-      ?b.customer_contact_consent
-      :b.owner_contact_consent;
-
     consentButton.textContent=myConsent
-      ?"सहमति वापस लें"
-      :"मैं अपना नंबर साझा करने की सहमति देता/देती हूँ";
+     ?"सहमति वापस लें"
+     :"मैं अपना नंबर साझा करने की सहमति देता/देती हूँ";
 
     consentButton.className=myConsent?"secondary":"";
     consentButton.onclick=()=>changeConsent(b.id,!myConsent);
@@ -397,9 +383,7 @@ async function loadBookings(view="all"){
     if(b.customer_contact_consent&&b.owner_contact_consent){
      await showContacts(contact,b);
     }else{
-     addText(contact,
-      "दोनों की सहमति होने पर ही मोबाइल नंबर दिखेंगे।"
-     );
+     addText(contact,"दोनों की सहमति होने पर ही मोबाइल नंबर दिखेंगे।");
     }
 
     card.appendChild(contact);
@@ -416,7 +400,6 @@ async function loadBookings(view="all"){
 }
 
 loadBookings();
-
 </script>
 </body>
 </html>
