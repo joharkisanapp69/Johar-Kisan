@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JOHAR KISAN - Machines</title>
-
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial,sans-serif;background:#edf5ed;color:#17351e}
@@ -15,7 +14,6 @@ main{max-width:700px;margin:auto;padding:14px}
 .machine h3{color:#176b35}
 input,select{width:100%;padding:12px;margin:6px 0;border:1px solid #ccd8cc;border-radius:8px;background:white;font-size:15px}
 button,.book-button{display:inline-block;padding:12px;border:0;border-radius:8px;background:#176b35;color:white;font-size:14px;text-decoration:none;cursor:pointer;text-align:center}
-button:disabled{opacity:.6}
 .reset{background:#647664}
 .book-button{display:block;width:100%;margin-top:14px;font-weight:bold;font-size:16px}
 .muted{color:#647664;font-size:13px}
@@ -23,10 +21,11 @@ button:disabled{opacity:.6}
 .filter-label{display:block;margin-top:9px;font-size:13px;font-weight:bold;color:#315c38}
 .rating{background:#fff8df;padding:10px;border-radius:8px;margin:10px 0;color:#765500;font-size:14px}
 .rating strong{font-size:17px}
+.rating-error{background:#fcefed;color:#9a392e}
 </style>
 </head>
-
 <body>
+
 <header>
 <h2>🌾 JOHAR KISAN</h2>
 <p>किसानों के लिए मशीनें</p>
@@ -35,7 +34,6 @@ button:disabled{opacity:.6}
 <main>
 <div class="card">
 <h3>🔍 मशीन खोजें</h3>
-
 <input id="search" placeholder="मशीन का नाम लिखें...">
 
 <label class="filter-label">श्रेणी चुनें</label>
@@ -97,14 +95,15 @@ function fillSelect(select,values,defaultText,selectedValue=""){
  first.textContent=defaultText;
  select.appendChild(first);
 
- uniqueValues(values).forEach(value=>{
+ const unique=uniqueValues(values);
+ unique.forEach(value=>{
   const option=document.createElement("option");
   option.value=value;
   option.textContent=value;
   select.appendChild(option);
  });
 
- if(uniqueValues(values).includes(selectedValue)){
+ if(unique.includes(selectedValue)){
   select.value=selectedValue;
  }
 }
@@ -132,26 +131,41 @@ function loadLocationFilters(){
  fillSelect(villageSelect,allMachines.flatMap(m=>[m.village,m.locality]),"सभी गाँव और क्षेत्र");
 }
 
-// प्रत्येक मशीन की सार्वजनिक औसत रेटिंग लोड करें
-async function loadMachineRating(machineId){
- const {data,error}=await supabase.rpc("get_machine_rating",{
-  p_machine_id:machineId
- });
+async function loadMachineRatings(machineIds){
+ const results=await Promise.all(
+  machineIds.map(async id=>{
+   const {data,error}=await supabase.rpc("get_machine_rating",{
+    p_machine_id:id
+   });
 
- if(error){
-  console.error("Rating error:",error.message);
-  return null;
- }
+   if(error){
+    console.error("Rating error:",error.message);
+    return {id,error:true};
+   }
 
- if(!data || data.length===0) return null;
- return data[0];
+   return {
+    id,
+    data:data?.[0]||null
+   };
+  })
+ );
+
+ return new Map(results.map(item=>[item.id,item]));
 }
 
-function createRatingElement(ratingData){
+function createRatingElement(result){
  const rating=document.createElement("div");
  rating.className="rating";
 
- if(!ratingData){
+ if(result?.error){
+  rating.classList.add("rating-error");
+  rating.textContent="⭐ रेटिंग अभी उपलब्ध नहीं है।";
+  return rating;
+ }
+
+ const ratingData=result?.data;
+
+ if(!ratingData||Number(ratingData.total_reviews)===0){
   rating.textContent="⭐ अभी कोई रिव्यू नहीं";
   return rating;
  }
@@ -159,17 +173,12 @@ function createRatingElement(ratingData){
  const average=Number(ratingData.average_rating||0);
  const total=Number(ratingData.total_reviews||0);
 
- if(total===0){
-  rating.textContent="⭐ अभी कोई रिव्यू नहीं";
-  return rating;
- }
-
  const strong=document.createElement("strong");
  strong.textContent="⭐ "+average.toFixed(1)+" / 5";
  rating.appendChild(strong);
 
  const count=document.createElement("span");
- count.textContent="  ("+total+" Reviews)";
+ count.textContent=" ("+total+" Reviews)";
  rating.appendChild(count);
 
  return rating;
@@ -205,11 +214,6 @@ function showMachines(items){
   ratingBox.className="rating";
   ratingBox.textContent="⭐ रेटिंग लोड हो रही है...";
   card.appendChild(ratingBox);
-
-  loadMachineRating(m.id).then(data=>{
-   const newRating=createRatingElement(data);
-   ratingBox.replaceWith(newRating);
-  });
 
   const details=[
    "श्रेणी: "+(m.category||"-"),
@@ -249,6 +253,20 @@ function showMachines(items){
   }
 
   list.appendChild(card);
+ });
+
+ loadMachineRatings(items.map(m=>m.id)).then(ratings=>{
+  items.forEach(m=>{
+   const card=[...list.children].find(el=>
+    el.querySelector("h3")?.textContent==="🚜 "+m.name
+   );
+   if(!card)return;
+
+   const oldRating=card.querySelector(".rating");
+   if(oldRating){
+    oldRating.replaceWith(createRatingElement(ratings.get(m.id)));
+   }
+  });
  });
 }
 
