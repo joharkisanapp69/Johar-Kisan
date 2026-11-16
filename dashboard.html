@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JOHAR KISAN Dashboard</title>
+
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial,sans-serif;background:#edf5ed;color:#17351e}
@@ -13,27 +14,31 @@ header p{margin:7px 0 0;font-size:13px}
 main{max-width:700px;margin:auto;padding:14px}
 .card{background:white;padding:17px;margin:13px 0;border-radius:15px;box-shadow:0 2px 8px #0001}
 .card h3{margin:0 0 13px;color:#176b35}
-.menu-container{display:flex;flex-direction:row;flex-wrap:nowrap;gap:10px;overflow-x:auto;overflow-y:hidden;padding:10px 2px 14px;white-space:nowrap;scroll-behavior:smooth}
-.menu{flex:0 0 105px;min-width:105px;height:88px;border:0;border-radius:12px;background:#eaf5e9;color:#176b35;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;font-size:13px;font-weight:bold;cursor:pointer}
+.menu-container{display:flex;flex-direction:row;flex-wrap:nowrap;gap:10px;overflow-x:auto;padding:10px 2px 14px;white-space:nowrap}
+.menu{flex:0 0 105px;min-width:105px;height:88px;border:0;border-radius:12px;background:#eaf5e9;color:#176b35;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;font-size:13px;font-weight:bold}
 .menu span{font-size:25px}
-.menu:active{background:#d5ead4}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .stat{background:#f0f7ef;border-radius:12px;padding:15px}
 .stat strong{display:block;font-size:23px;color:#176b35}
 .stat small{color:#526b55}
-button.action{width:100%;padding:13px;margin-top:12px;border:0;border-radius:9px;background:#176b35;color:white;font-size:15px;cursor:pointer}
+button.action{width:100%;padding:13px;margin-top:12px;border:0;border-radius:9px;background:#176b35;color:white;font-size:15px}
 button.machine-action{background:#e5f3e5;color:#176b35;border:1px solid #176b35;font-weight:bold}
 label{display:block;margin:12px 0}
-#message,#statsMessage{font-size:13px;color:#176b35;overflow-wrap:anywhere}
+input[type="tel"]{width:100%;padding:13px;border:1px solid #b9cdb9;border-radius:9px;font-size:16px;margin-top:7px}
+#message,#statsMessage,#profileMessage{font-size:13px;color:#176b35;overflow-wrap:anywhere}
 footer{text-align:center;padding:20px;color:#66806a;font-size:12px}
 </style>
 </head>
+
 <body>
+
 <header>
 <h2>🌾 JOHAR KISAN</h2>
 <p>हर किसान, हर मशीन, हर सेवा – एक प्लेटफॉर्म</p>
 </header>
+
 <main>
+
 <div class="card" id="home">
 <h3>नमस्कार! स्वागत है 👋</h3>
 <p>आपका JOHAR KISAN Dashboard</p>
@@ -96,6 +101,7 @@ footer{text-align:center;padding:20px;color:#66806a;font-size:12px}
 <p>📍 गाँव और शहर के अनुसार सेवाएँ</p>
 <p>🛡️ सत्यापित Owner और मशीन की जानकारी</p>
 </div>
+
 </main>
 
 <footer>
@@ -114,17 +120,25 @@ const owner=document.getElementById("owner");
 const machineCount=document.getElementById("machineCount");
 const bookingCount=document.getElementById("bookingCount");
 const statsMessage=document.getElementById("statsMessage");
+const pageInfo=document.getElementById("pageInfo");
 
 let userId=null;
+let currentUser=null;
+let currentProfileName="";
 
 async function loadDashboard(){
+
  const {data:authData,error:authError}=await supabase.auth.getUser();
+
  if(authError||!authData.user){
   location.href="./auth.html";
   return;
  }
+
  const user=authData.user;
+ currentUser=user;
  userId=user.id;
+
  emailBox.textContent="Email: "+(user.email||"उपलब्ध नहीं");
 
  const {data,error}=await supabase.from("profiles")
@@ -135,26 +149,33 @@ async function loadDashboard(){
   message.textContent="Profile लोड नहीं हुई: "+error.message;
   return;
  }
- const profileName=data?.full_name||user.user_metadata?.full_name;
- nameBox.textContent=profileName?"नाम: "+profileName:"नाम उपलब्ध नहीं है।";
+
+ currentProfileName=data?.full_name||user.user_metadata?.full_name||"उपलब्ध नहीं";
+ nameBox.textContent="नाम: "+currentProfileName;
+
  customer.checked=data?.is_customer??true;
  owner.checked=data?.is_owner??false;
+
  await loadStats();
 }
 
 async function loadStats(){
+
  statsMessage.textContent="आँकड़े लोड हो रहे हैं...";
+
  const {count:machines,error:machineError}=await supabase.from("machines")
-  .select("id",{count:"exact",head:true}).eq("owner_id",userId);
+ .select("id",{count:"exact",head:true})
+ .eq("owner_id",userId);
 
  if(machineError){
   machineCount.textContent="—";
   statsMessage.textContent="मशीनों की संख्या नहीं मिली: "+machineError.message;
   return;
  }
+
  const {count:bookings,error:bookingError}=await supabase.from("bookings")
-  .select("id",{count:"exact",head:true})
-  .or(`customer_id.eq.${userId},owner_id.eq.${userId}`);
+ .select("id",{count:"exact",head:true})
+ .or(`customer_id.eq.${userId},owner_id.eq.${userId}`);
 
  if(bookingError){
   machineCount.textContent=machines??0;
@@ -162,48 +183,147 @@ async function loadStats(){
   statsMessage.textContent="बुकिंग की संख्या नहीं मिली: "+bookingError.message;
   return;
  }
+
  machineCount.textContent=machines??0;
  bookingCount.textContent=bookings??0;
  statsMessage.textContent="Database से आँकड़े अपडेट हुए।";
 }
 
 document.getElementById("save").onclick=async()=>{
+
  if(!userId)return;
+
  if(!customer.checked&&!owner.checked){
   message.textContent="कम से कम एक भूमिका चुनें।";
   return;
  }
+
  message.textContent="सेव हो रहा है...";
+
  const {error}=await supabase.from("profiles").update({
   is_customer:customer.checked,
   is_owner:owner.checked
  }).eq("id",userId);
- message.textContent=error?"सेव नहीं हुआ: "+error.message:"आपकी भूमिका सफलतापूर्वक सेव हो गई।";
+
+ message.textContent=error
+ ? "सेव नहीं हुआ: "+error.message
+ : "आपकी भूमिका सफलतापूर्वक सेव हो गई।";
 };
 
-window.showPage=function(page){
- const titles={home:"Home",history:"History",profile:"Profile",support:"Help & Support"};
- const descriptions={
-  home:"JOHAR KISAN में आपका स्वागत है।",
-  history:"पुरानी गतिविधियों का रिकॉर्ड यहाँ मिलेगा।",
-  profile:"आपकी व्यक्तिगत जानकारी और अकाउंट सेटिंग यहाँ आएँगी।",
-  support:"सहायता और शिकायत की सुविधा अगले चरण में बनेगी।"
- };
- document.getElementById("pageInfo").scrollIntoView({behavior:"smooth"});
- document.querySelector("#pageInfo h3").textContent=titles[page];
- document.querySelector("#pageInfo p").textContent=descriptions[page];
+window.showPage=async function(page){
+
+ if(page==="profile"){
+
+  pageInfo.innerHTML=`
+   <h3>👤 मेरी Profile</h3>
+
+   <p><b>नाम:</b> <span id="profileName"></span></p>
+   <p><b>Email:</b> <span id="profileEmail"></span></p>
+
+   <p><b>मेरी भूमिका:</b> <span id="profileRole"></span></p>
+
+   <label>
+    मोबाइल नंबर
+    <input type="tel" id="profilePhone"
+    maxlength="10" inputmode="numeric"
+    placeholder="10 अंकों का मोबाइल नंबर">
+   </label>
+
+   <button class="action" id="savePhone">
+    📱 मोबाइल नंबर सेव करें
+   </button>
+
+   <p id="profileMessage">मोबाइल नंबर लोड हो रहा है...</p>
+  `;
+
+  document.getElementById("profileName").textContent=currentProfileName;
+  document.getElementById("profileEmail").textContent=currentUser?.email||"उपलब्ध नहीं";
+
+  let roles=[];
+  if(customer.checked)roles.push("Customer");
+  if(owner.checked)roles.push("Owner");
+
+  document.getElementById("profileRole").textContent=roles.join(" और ")||"अभी कोई भूमिका नहीं";
+
+  const phoneInput=document.getElementById("profilePhone");
+  const profileMessage=document.getElementById("profileMessage");
+  const savePhone=document.getElementById("savePhone");
+
+  const {data:phone,error:phoneError}=await supabase.rpc("get_my_phone");
+
+  if(phoneError){
+   profileMessage.textContent="मोबाइल नंबर लोड नहीं हुआ: "+phoneError.message;
+  }else{
+   phoneInput.value=phone||"";
+   profileMessage.textContent=phone?"आपका मोबाइल नंबर लोड हो गया।":"अभी मोबाइल नंबर सेव नहीं है।";
+  }
+
+  savePhone.onclick=async()=>{
+
+   const number=phoneInput.value.trim();
+
+   if(!/^[6-9][0-9]{9}$/.test(number)){
+    profileMessage.textContent="कृपया सही 10 अंकों का मोबाइल नंबर डालें।";
+    return;
+   }
+
+   savePhone.disabled=true;
+   profileMessage.textContent="मोबाइल नंबर सेव हो रहा है...";
+
+   const {data,error}=await supabase.rpc("set_my_phone",{
+    p_phone:number
+   });
+
+   savePhone.disabled=false;
+
+   if(error){
+    profileMessage.textContent="सेव नहीं हुआ: "+error.message;
+   }else{
+    profileMessage.textContent="मोबाइल नंबर सफलतापूर्वक सेव हो गया।";
+   }
+  };
+
+ }else{
+
+  const titles={
+   home:"Home",
+   history:"History",
+   support:"Help & Support"
+  };
+
+  const descriptions={
+   home:"JOHAR KISAN में आपका स्वागत है।",
+   history:"पुरानी गतिविधियों का रिकॉर्ड यहाँ मिलेगा।",
+   support:"सहायता और शिकायत की सुविधा अगले चरण में बनेगी।"
+  };
+
+  pageInfo.innerHTML="";
+  const heading=document.createElement("h3");
+  heading.textContent=titles[page]||"Home";
+
+  const paragraph=document.createElement("p");
+  paragraph.textContent=descriptions[page]||descriptions.home;
+
+  pageInfo.append(heading,paragraph);
+ }
+
+ pageInfo.scrollIntoView({behavior:"smooth"});
 };
 
 document.getElementById("logout").onclick=async()=>{
+
  const {error}=await supabase.auth.signOut();
+
  if(error){
   message.textContent="Logout नहीं हुआ: "+error.message;
   return;
  }
+
  location.href="./auth.html";
 };
 
 loadDashboard();
 </script>
+
 </body>
 </html>
