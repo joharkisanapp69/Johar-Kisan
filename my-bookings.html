@@ -31,11 +31,11 @@ button:disabled{opacity:.6;cursor:not-allowed}
 .review textarea{min-height:85px;resize:vertical}
 .review-result{background:#edf5ed;padding:12px;border-radius:8px;margin-top:10px}
 .stars{color:#d58a00;font-size:21px;letter-spacing:2px}
+.hidden-review{background:#fff0e8;border:1px solid #d99b78;padding:10px;border-radius:8px;margin-top:10px;color:#843b20;font-size:14px}
 </style>
 </head>
 
 <body>
-
 <header>
 <h2>🌾 JOHAR KISAN</h2>
 <p>मेरी बुकिंग</p>
@@ -43,7 +43,6 @@ button:disabled{opacity:.6;cursor:not-allowed}
 
 <main>
 <div class="card">
-
 <button onclick="location.href='./dashboard.html'">← Dashboard</button>
 <h2>📋 Booking Dashboard</h2>
 
@@ -65,7 +64,6 @@ button:disabled{opacity:.6;cursor:not-allowed}
 
 <p id="message">बुकिंग लोड हो रही हैं...</p>
 <div id="bookingList"></div>
-
 </div>
 </main>
 
@@ -102,10 +100,8 @@ function addText(parent,value){
 
 function addCallButton(parent,label,phone){
  if(!phone)return;
-
  const cleanPhone=String(phone).replace(/[^\d+]/g,"");
  if(!cleanPhone)return;
-
  const a=document.createElement("a");
  a.className="call";
  a.href="tel:"+cleanPhone;
@@ -125,7 +121,6 @@ async function showContacts(container,b){
  }
 
  const result=Array.isArray(data)?data[0]:data;
-
  if(!result){
   addText(container,"दोनों की सहमति मिलने पर मोबाइल नंबर यहाँ दिखाई देंगे।");
   return;
@@ -149,10 +144,7 @@ async function changeConsent(bookingId,consent){
 
  const {data,error}=await supabase.rpc(
   "set_booking_contact_consent",
-  {
-   p_booking_id:bookingId,
-   p_consent:consent
-  }
+  {p_booking_id:bookingId,p_consent:consent}
  );
 
  if(error){
@@ -211,10 +203,8 @@ function startRealtime(){
    schema:"public",
    table:"bookings"
   },payload=>{
-
    const b=payload.new||payload.old;
    if(!b||!user)return;
-
    if(b.customer_id!==user.id&&b.owner_id!==user.id)return;
 
    if(payload.eventType==="INSERT"){
@@ -248,11 +238,11 @@ function showNotification(text){
  box.textContent=text;
 }
 
-// Review पहले से दिया है या नहीं, जाँचें
+// Customer की Review History लोड करें
 async function loadReview(bookingId){
  const {data,error}=await supabase
   .from("reviews")
-  .select("rating,review_text,created_at")
+  .select("rating,review_text,created_at,is_hidden")
   .eq("booking_id",bookingId)
   .maybeSingle();
 
@@ -260,7 +250,6 @@ async function loadReview(bookingId){
  return data;
 }
 
-// Review दिखाएँ या नया Review देने का विकल्प दें
 async function addReviewSection(card,b){
  if(b.status!=="completed"||b.customer_id!==user.id)return;
 
@@ -270,7 +259,6 @@ async function addReviewSection(card,b){
  const heading=document.createElement("h3");
  heading.textContent="⭐ Rating & Review";
  section.appendChild(heading);
-
  card.appendChild(section);
 
  try{
@@ -292,6 +280,13 @@ async function addReviewSection(card,b){
    }
 
    addText(result,"Review जमा हो चुका है। धन्यवाद!");
+
+   if(existing.is_hidden){
+    const hidden=document.createElement("div");
+    hidden.className="hidden-review";
+    hidden.textContent="⚠️ Admin ने इस Review को सार्वजनिक रूप से Hide किया है। यह मशीन की Public Rating में शामिल नहीं है।";
+    result.appendChild(hidden);
+   }
 
    section.appendChild(result);
    return;
@@ -521,7 +516,6 @@ async function loadBookings(view="all"){
     card.appendChild(contact);
    }
 
-   // केवल Customer की Completed Booking पर Review
    if(b.status==="completed"&&b.customer_id===user.id){
     await addReviewSection(card,b);
    }
