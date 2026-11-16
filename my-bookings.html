@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOHAR KISAN - My Bookings</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial;background:#edf5ed;color:#17351e}
+header{background:#176b35;color:white;padding:18px}
+main{max-width:750px;margin:auto;padding:14px}
+.card{background:white;padding:16px;margin:13px 0;border-radius:13px}
+.tabs{display:flex;gap:8px;overflow-x:auto}
+button{padding:11px 14px;border:0;border-radius:8px;background:#176b35;color:white;cursor:pointer}
+.tabs button{white-space:nowrap}
+.booking{border:1px solid #dce8dc;border-radius:10px;padding:13px;margin:13px 0}
+.booking h3{color:#176b35}
+.info{font-size:14px;color:#526552;overflow-wrap:anywhere}
+.status{font-weight:bold;color:#176b35}
+.danger{background:#a52d2d}
+#message{overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<header>
+<h2>🌾 JOHAR KISAN</h2>
+<p>मेरी बुकिंग</p>
+</header>
+
+<main>
+<div class="card">
+<button onclick="location.href='./dashboard.html'">← Dashboard</button>
+<h2>📋 Booking Dashboard</h2>
+
+<div class="tabs">
+<button onclick="loadBookings('all')">सभी</button>
+<button onclick="loadBookings('customer')">मेरी भेजी Booking</button>
+<button onclick="loadBookings('owner')">मेरी मशीन की Booking</button>
+</div>
+
+<p id="message">बुकिंग लोड हो रही हैं...</p>
+<div id="bookingList"></div>
+</div>
+</main>
+
+<script type="module">
+import {supabase} from "./supabase-config.js";
+
+const message=document.getElementById("message");
+const list=document.getElementById("bookingList");
+let user=null;
+let currentView="all";
+
+const statusHindi={
+ pending:"⏳ Pending - जवाब बाकी",
+ accepted:"✅ Accepted - स्वीकार",
+ completed:"✔ Completed - पूरा",
+ cancelled:"❌ Cancelled - रद्द"
+};
+
+async function loadBookings(view="all"){
+ currentView=view;
+ list.innerHTML="";
+ message.textContent="बुकिंग लोड हो रही हैं...";
+
+ try{
+  const {data:authData,error:authError}=await supabase.auth.getUser();
+  if(authError) throw authError;
+  if(!authData.user){
+   location.href="./auth.html";
+   return;
+  }
+  user=authData.user;
+
+  let query=supabase.from("bookings").select(`
+   id,machine_id,customer_id,owner_id,booking_date,
+   service_date,service_address,customer_note,
+   owner_note,status
+  `).order("created_at",{ascending:false});
+
+  if(view==="customer"){
+   query=query.eq("customer_id",user.id);
+  }else if(view==="owner"){
+   query=query.eq("owner_id",user.id);
+  }else{
+   query=query.or(
+    `customer_id.eq.${user.id},owner_id.eq.${user.id}`
+   );
+  }
+
+  const {data,error}=await query;
+  if(error) throw error;
+
+  if(!data||data.length===0){
+   message.textContent="अभी कोई Booking उपलब्ध नहीं है।";
+   return;
+  }
+
+  message.textContent="कुल Booking: "+data.length;
+
+  for(const b of data){
+   const card=document.createElement("div");
+   card.className="booking";
+
+   const heading=document.createElement("h3");
+   heading.textContent="🚜 Booking #"+b.id;
+   card.appendChild(heading);
+
+   const details=[
+    "भूमिका: "+(b.customer_id===user.id?"Customer":"Owner"),
+    "मशीन ID: "+b.machine_id,
+    "काम की तारीख: "+(b.service_date||"-"),
+    "काम का स्थान: "+(b.service_address||"-"),
+    "Booking तारीख: "+(b.booking_date||"-"),
+    "स्थिति: "+(statusHindi[b.status]||b.status||"-"),
+    "किसान का संदेश: "+(b.customer_note||"-"),
+    "Owner का संदेश: "+(b.owner_note||"-")
+   ];
+
+   details.forEach(value=>{
+    const p=document.createElement("p");
+    p.className="info";
+    p.textContent=value;
+    card.appendChild(p);
+   });
+
+   if(b.owner_id===user.id && b.status==="pending"){
+    const accept=document.createElement("button");
+    accept.textContent="Accept";
+    accept.onclick=()=>updateStatus(b.id,"accepted");
+    card.appendChild(accept);
+
+    const reject=document.createElement("button");
+    reject.textContent="Reject";
+    reject.className="danger";
+    reject.style.marginLeft="8px";
+    reject.onclick=()=>updateStatus(b.id,"cancelled");
+    card.appendChild(reject);
+   }
+
+   list.appendChild(card);
+  }
+
+ }catch(error){
+  message.textContent="त्रुटि: "+error.message;
+ }
+}
+
+async function updateStatus(id,status){
+ if(!confirm("क्या आप इस Booking का Status बदलना चाहते हैं?"))return;
+
+ message.textContent="Status अपडेट हो रहा है...";
+
+ const {error}=await supabase
+  .from("bookings")
+  .update({status:status})
+  .eq("id",id)
+  .eq("owner_id",user.id)
+  .eq("status","pending");
+
+ if(error){
+  message.textContent="अपडेट नहीं हुआ: "+error.message;
+  return;
+ }
+
+ message.textContent="Booking Status अपडेट हो गया।";
+ loadBookings(currentView);
+}
+
+loadBookings();
+</script>
+</body>
+</html>
