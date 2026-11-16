@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOHAR KISAN - Machines</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial;background:#edf5ed;color:#17351e}
+header{background:#176b35;color:white;padding:18px}
+main{max-width:700px;margin:auto;padding:14px}
+.card{background:white;padding:15px;border-radius:12px;margin:13px 0}
+.machine img{width:100%;max-height:220px;object-fit:cover;border-radius:9px}
+.machine h3{color:#176b35}
+input,select{width:100%;padding:12px;margin:6px 0;border:1px solid #ccd8cc;border-radius:8px}
+button{padding:11px;border:0;border-radius:8px;background:#176b35;color:white}
+.muted{color:#647664;font-size:13px}
+</style>
+</head>
+<body>
+<header>
+<h2>🌾 JOHAR KISAN</h2>
+<p>किसानों के लिए मशीनें</p>
+</header>
+<main>
+<div class="card">
+<h3>🔍 मशीन खोजें</h3>
+<input id="search" placeholder="मशीन या गाँव का नाम लिखें">
+<select id="category">
+<option value="">सभी श्रेणियाँ</option>
+<option>Tractor</option>
+<option>Harvester</option>
+<option>Rotavator</option>
+<option>JCB</option>
+<option>Thresher</option>
+<option>Other</option>
+</select>
+<button id="searchBtn">खोजें</button>
+<button onclick="location.href='./dashboard.html'">Dashboard</button>
+<p id="message">मशीनें लोड हो रही हैं...</p>
+</div>
+<div id="machineList"></div>
+</main>
+
+<script type="module">
+import {supabase} from "./supabase-config.js";
+
+const list=document.getElementById("machineList");
+const message=document.getElementById("message");
+
+let allMachines=[];
+
+function showMachines(items){
+ list.innerHTML="";
+
+ if(items.length===0){
+  message.textContent="कोई Approved मशीन नहीं मिली।";
+  return;
+ }
+
+ message.textContent="मिली हुई मशीनें: "+items.length;
+
+ items.forEach(m=>{
+  const card=document.createElement("div");
+  card.className="card machine";
+
+  const title=document.createElement("h3");
+  title.textContent="🚜 "+m.name;
+  card.appendChild(title);
+
+  if(m.machine_photo_url){
+   const img=document.createElement("img");
+   img.src=m.machine_photo_url;
+   img.alt="Machine photo";
+   img.onerror=()=>img.style.display="none";
+   card.appendChild(img);
+  }
+
+  const details=[
+   "श्रेणी: "+(m.category||"-"),
+   "किराया: ₹"+(m.price??"-")+" / "+(m.price_unit||"-"),
+   "गाँव: "+(m.village||"-"),
+   "तहसील: "+(m.tehsil||"-"),
+   "जिला: "+(m.district||"-"),
+   "राज्य: "+(m.state||"-"),
+   "उपलब्धता: "+(m.availability_status||"available")
+  ];
+
+  details.forEach(v=>{
+   const p=document.createElement("p");
+   p.className="muted";
+   p.textContent=v;
+   card.appendChild(p);
+  });
+
+  list.appendChild(card);
+ });
+}
+
+async function loadMachines(){
+ message.textContent="मशीनें लोड हो रही हैं...";
+ list.innerHTML="";
+
+ const {data,error}=await supabase
+  .from("machines")
+  .select("*")
+  .eq("is_active",true)
+  .eq("approval_status","approved")
+  .order("created_at",{ascending:false});
+
+ if(error){
+  message.textContent="त्रुटि: "+error.message;
+  return;
+ }
+
+ allMachines=data||[];
+ showMachines(allMachines);
+}
+
+function searchMachines(){
+ const q=document.getElementById("search").value.trim().toLowerCase();
+ const category=document.getElementById("category").value;
+
+ const filtered=allMachines.filter(m=>{
+  const text=[
+   m.name,m.category,m.village,m.tehsil,
+   m.district,m.state,m.locality
+  ].join(" ").toLowerCase();
+
+  return (!q||text.includes(q))&&
+   (!category||m.category===category);
+ });
+
+ showMachines(filtered);
+}
+
+document.getElementById("searchBtn")
+ .addEventListener("click",searchMachines);
+
+document.getElementById("search")
+ .addEventListener("input",searchMachines);
+
+document.getElementById("category")
+ .addEventListener("change",searchMachines);
+
+loadMachines();
+</script>
+</body>
+</html>
