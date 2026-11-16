@@ -9,12 +9,18 @@
 body{margin:0;font-family:Arial;background:#edf5ed;color:#17351e}
 header{background:#176b35;color:white;padding:18px}
 main{max-width:700px;margin:auto;padding:14px}
-.card{background:white;padding:16px;border-radius:12px;margin:14px 0}
-button{padding:11px;border:0;border-radius:8px;background:#176b35;color:white;margin:5px 3px}
+.card{background:white;padding:16px;border-radius:12px;margin:14px 0;box-shadow:0 2px 8px #0001}
+button{padding:11px;border:0;border-radius:8px;background:#176b35;color:white;margin:5px 3px;cursor:pointer}
+button:disabled{opacity:.6}
 .reject{background:#a52d2d}
 img{width:100%;max-height:220px;object-fit:cover;border-radius:9px}
-textarea{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px}
+textarea{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;min-height:75px}
 #message{overflow-wrap:anywhere}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:15px}
+.stat{background:#f1f7f0;border:1px solid #dce8dc;padding:14px;border-radius:10px}
+.stat strong{display:block;font-size:25px;color:#176b35;margin-top:6px}
+.small{font-size:13px;color:#647664}
+.status{font-weight:bold}
 </style>
 </head>
 <body>
@@ -22,14 +28,29 @@ textarea{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px}
 <h2>🌾 JOHAR KISAN</h2>
 <p>Admin Dashboard</p>
 </header>
+
 <main>
 <div class="card">
 <h3>🛡️ Machine Approval Panel</h3>
 <button onclick="location.href='./dashboard.html'">Dashboard</button>
 <button id="refresh">Refresh</button>
+
+<div class="stats">
+ <div class="stat">कुल मशीनें<strong id="totalCount">0</strong></div>
+ <div class="stat">Pending<strong id="pendingCount">0</strong></div>
+ <div class="stat">Approved<strong id="approvedCount">0</strong></div>
+ <div class="stat">Rejected<strong id="rejectedCount">0</strong></div>
+ <div class="stat">Active<strong id="activeCount">0</strong></div>
+ <div class="stat">Inactive<strong id="inactiveCount">0</strong></div>
+</div>
+
 <p id="message">लोड हो रहा है...</p>
 </div>
+
+<div class="card">
+<h3>📋 Machine Listings</h3>
 <div id="machineList"></div>
+</div>
 </main>
 
 <script type="module">
@@ -44,8 +65,8 @@ async function loadMachines(){
 
  try{
   const {data:authData,error:authError}=await supabase.auth.getUser();
-  if(authError) throw authError;
-  if(!authData.user) throw new Error("पहले Login करें।");
+  if(authError)throw authError;
+  if(!authData.user)throw new Error("पहले Login करें।");
 
   const {data:profile,error:profileError}=await supabase
    .from("profiles")
@@ -53,26 +74,39 @@ async function loadMachines(){
    .eq("id",authData.user.id)
    .single();
 
-  if(profileError) throw profileError;
-  if(!profile.is_admin) throw new Error("आपको Admin अनुमति नहीं है।");
+  if(profileError)throw profileError;
+  if(!profile?.is_admin)throw new Error("आपको Admin अनुमति नहीं है।");
 
   const {data,error}=await supabase
    .from("machines")
    .select("*")
    .order("created_at",{ascending:false});
 
-  if(error) throw error;
+  if(error)throw error;
 
-  const pending=data.filter(m=>m.approval_status==="pending");
-  message.textContent="कुल मशीनें: "+data.length+
-   " | Pending: "+pending.length;
+  const machines=data||[];
 
-  if(data.length===0){
-   message.textContent="अभी कोई मशीन उपलब्ध नहीं है।";
+  const pending=machines.filter(m=>m.approval_status==="pending");
+  const approved=machines.filter(m=>m.approval_status==="approved");
+  const rejected=machines.filter(m=>m.approval_status==="rejected");
+  const active=machines.filter(m=>m.is_active===true);
+  const inactive=machines.filter(m=>m.is_active!==true);
+
+  document.getElementById("totalCount").textContent=machines.length;
+  document.getElementById("pendingCount").textContent=pending.length;
+  document.getElementById("approvedCount").textContent=approved.length;
+  document.getElementById("rejectedCount").textContent=rejected.length;
+  document.getElementById("activeCount").textContent=active.length;
+  document.getElementById("inactiveCount").textContent=inactive.length;
+
+  message.textContent="सभी मशीनों का डेटा अपडेट हो गया।";
+
+  if(machines.length===0){
+   list.textContent="अभी कोई मशीन उपलब्ध नहीं है।";
    return;
   }
 
-  data.forEach(machine=>{
+  machines.forEach(machine=>{
    const card=document.createElement("div");
    card.className="card";
 
@@ -84,6 +118,7 @@ async function loadMachines(){
     const img=document.createElement("img");
     img.src=machine.machine_photo_url;
     img.alt="Machine photo";
+    img.onerror=()=>img.style.display="none";
     card.appendChild(img);
    }
 
@@ -94,14 +129,24 @@ async function loadMachines(){
     "गाँव: "+(machine.village||"-"),
     "तहसील: "+(machine.tehsil||"-"),
     "जिला: "+(machine.district||"-"),
-    "स्थिति: "+(machine.approval_status||"pending")
+    "राज्य: "+(machine.state||"-"),
+    "Approval: "+(machine.approval_status||"pending"),
+    "Listing: "+(machine.is_active?"Active":"Inactive")
    ];
 
    details.forEach(v=>{
     const p=document.createElement("p");
+    p.className="small";
     p.textContent=v;
     card.appendChild(p);
    });
+
+   if(machine.approval_status==="rejected" && machine.rejection_reason){
+    const reason=document.createElement("p");
+    reason.className="small";
+    reason.textContent="Reject कारण: "+machine.rejection_reason;
+    card.appendChild(reason);
+   }
 
    if(machine.approval_status==="pending"){
     const reason=document.createElement("textarea");
@@ -137,20 +182,24 @@ async function loadMachines(){
 async function updateStatus(machine,status,reason){
  if(!confirm("क्या आप यह बदलाव करना चाहते हैं?"))return;
 
- const {error}=await supabase
+ const {data,error}=await supabase
   .from("machines")
   .update({
    approval_status:status,
    rejection_reason:reason,
    is_active:status==="approved"
   })
-  .eq("id",machine.id);
+  .eq("id",machine.id)
+  .select("id,approval_status,is_active")
+  .maybeSingle();
 
  if(error){
   alert("बदलाव नहीं हुआ: "+error.message);
+ }else if(!data){
+  alert("मशीन अपडेट नहीं हुई। Admin RLS Policy जाँचें।");
  }else{
-  alert("मशीन की स्थिति अपडेट हो गई।");
-  loadMachines();
+  alert("मशीन की स्थिति अपडेट हो गई: "+data.approval_status);
+  await loadMachines();
  }
 }
 
