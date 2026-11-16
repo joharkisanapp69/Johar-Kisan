@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOHAR KISAN - Help & Support</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#edf5ed;color:#17351e}
+header{background:#176b35;color:white;padding:18px}
+main{max-width:650px;margin:auto;padding:14px}
+.card{background:white;padding:17px;margin:13px 0;border-radius:14px;box-shadow:0 2px 8px #0001}
+h2,h3{color:#176b35}
+header h2{color:white;margin:0}
+input,select,textarea{width:100%;padding:12px;margin:8px 0 14px;border:1px solid #bdcdbd;border-radius:9px;font-size:15px}
+textarea{min-height:110px;resize:vertical}
+button{width:100%;padding:13px;background:#176b35;color:white;border:0;border-radius:9px;font-size:15px;margin-top:8px}
+.ticket{border:1px solid #dce8dc;border-radius:10px;padding:13px;margin:12px 0;overflow-wrap:anywhere}
+.status{font-weight:bold;color:#176b35}
+.small{font-size:13px;color:#607560}
+#message{font-size:13px;overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+
+<header>
+<h2>🌾 JOHAR KISAN</h2>
+<p>Help & Support – सहायता केंद्र</p>
+</header>
+
+<main>
+
+<div class="card">
+<button onclick="location.href='./dashboard.html'">⬅ Dashboard पर वापस जाएँ</button>
+<h3>🎧 सहायता और शिकायत</h3>
+<p>अपनी समस्या हमें बताएँ। Admin आपकी शिकायत देख सकेगा।</p>
+
+<label>शिकायत का विषय</label>
+<select id="subject">
+<option value="">विषय चुनें</option>
+<option value="Booking Problem">बुकिंग की समस्या</option>
+<option value="Machine Problem">मशीन की समस्या</option>
+<option value="Owner Problem">मशीन मालिक से जुड़ी समस्या</option>
+<option value="Payment Problem">भुगतान संबंधी समस्या</option>
+<option value="Account Problem">अकाउंट की समस्या</option>
+<option value="Other">अन्य समस्या</option>
+</select>
+
+<label>अपनी समस्या लिखें</label>
+<textarea id="details" maxlength="2000" placeholder="अपनी समस्या विस्तार से लिखें..."></textarea>
+
+<button id="send">📨 शिकायत भेजें</button>
+<p id="message"></p>
+</div>
+
+<div class="card">
+<h3>📋 मेरी शिकायतें</h3>
+<button id="refresh">🔄 शिकायतें Refresh करें</button>
+<div id="ticketList">शिकायतें लोड हो रही हैं...</div>
+</div>
+
+</main>
+
+<script type="module">
+import {supabase} from "./supabase-config.js";
+
+const subject=document.getElementById("subject");
+const details=document.getElementById("details");
+const message=document.getElementById("message");
+const ticketList=document.getElementById("ticketList");
+const send=document.getElementById("send");
+
+let userId=null;
+
+async function checkLogin(){
+ const {data,error}=await supabase.auth.getUser();
+
+ if(error||!data.user){
+  location.href="./auth.html";
+  return false;
+ }
+
+ userId=data.user.id;
+ return true;
+}
+
+async function sendTicket(){
+ if(!userId)return;
+
+ const selectedSubject=subject.value;
+ const text=details.value.trim();
+
+ if(!selectedSubject){
+  message.textContent="कृपया शिकायत का विषय चुनें।";
+  return;
+ }
+
+ if(text.length<10){
+  message.textContent="कृपया कम से कम 10 अक्षरों में समस्या लिखें।";
+  return;
+ }
+
+ send.disabled=true;
+ message.textContent="शिकायत भेजी जा रही है...";
+
+ const {error}=await supabase.from("support_tickets").insert({
+  user_id:userId,
+  subject:selectedSubject,
+  message:text
+ });
+
+ send.disabled=false;
+
+ if(error){
+  message.textContent="शिकायत नहीं भेजी गई: "+error.message;
+  return;
+ }
+
+ message.textContent="आपकी शिकायत सफलतापूर्वक भेज दी गई।";
+ subject.value="";
+ details.value="";
+ await loadTickets();
+}
+
+async function loadTickets(){
+ if(!userId)return;
+
+ ticketList.textContent="शिकायतें लोड हो रही हैं...";
+
+ const {data,error}=await supabase.from("support_tickets")
+ .select("id,subject,message,status,created_at")
+ .eq("user_id",userId)
+ .order("created_at",{ascending:false});
+
+ if(error){
+  ticketList.textContent="लोड नहीं हुआ: "+error.message;
+  return;
+ }
+
+ if(!data||data.length===0){
+  ticketList.textContent="अभी कोई शिकायत दर्ज नहीं है।";
+  return;
+ }
+
+ ticketList.innerHTML="";
+
+ data.forEach(ticket=>{
+  const box=document.createElement("div");
+  box.className="ticket";
+
+  const heading=document.createElement("h3");
+  heading.textContent=ticket.subject;
+  box.appendChild(heading);
+
+  const description=document.createElement("p");
+  description.textContent=ticket.message;
+  box.appendChild(description);
+
+  const status=document.createElement("p");
+  status.className="status";
+
+  const statuses={
+   pending:"लंबित",
+   in_progress:"काम चल रहा है",
+   resolved:"समाधान हो गया",
+   rejected:"अस्वीकृत"
+  };
+
+  status.textContent="स्थिति: "+(statuses[ticket.status]||ticket.status);
+  box.appendChild(status);
+
+  const date=document.createElement("p");
+  date.className="small";
+  date.textContent="तारीख: "+new Date(ticket.created_at).toLocaleString("hi-IN");
+  box.appendChild(date);
+
+  ticketList.appendChild(box);
+ });
+}
+
+send.addEventListener("click",sendTicket);
+document.getElementById("refresh").addEventListener("click",loadTickets);
+
+if(await checkLogin()){
+ await loadTickets();
+}
+</script>
+
+</body>
+</html>
