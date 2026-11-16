@@ -121,7 +121,7 @@ photoInput.addEventListener("change",()=>{
  }
 
  if(selectedPhoto.size>5*1024*1024){
-  message.textContent="फोटो का आकार UNLIMITED रखें।";
+  message.textContent="फोटो का आकार 50 MB से कम रखें।";
   photoInput.value="";
   selectedPhoto=null;
   return;
