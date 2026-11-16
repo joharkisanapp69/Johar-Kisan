@@ -21,15 +21,15 @@ button:disabled{opacity:.6}
 .danger{background:#a52d2d}
 .edit{background:#e0f0df;color:#176b35;font-weight:bold}
 .photo-btn{background:#285d9b;margin-top:8px}
+.pending{color:#a66b00;font-weight:bold}
+.approved{color:#176b35;font-weight:bold}
 </style>
 </head>
 <body>
-
 <header>
 <h2>🌾 JOHAR KISAN</h2>
 <p>मेरी मशीनें</p>
 </header>
-
 <main>
 <div class="card">
 <h2>🚜 My Machines</h2>
@@ -55,12 +55,10 @@ async function loadMachines(){
  message.textContent="मशीनें लोड हो रही हैं...";
 
  const {data:authData,error:authError}=await supabase.auth.getUser();
-
  if(authError||!authData.user){
   location.href="./auth.html";
   return;
  }
-
  currentUser=authData.user;
 
  const {data,error}=await supabase
@@ -73,7 +71,6 @@ async function loadMachines(){
   message.textContent="त्रुटि: "+error.message;
   return;
  }
-
  if(!data||data.length===0){
   message.textContent="अभी आपने कोई मशीन नहीं जोड़ी है।";
   return;
@@ -97,6 +94,13 @@ async function loadMachines(){
    card.appendChild(img);
   }
 
+  const approval=document.createElement("p");
+  approval.className="muted";
+  const status=machine.approval_status||"pending";
+  approval.textContent="Approval Status: "+status.toUpperCase();
+  approval.classList.add(status==="approved"?"approved":"pending");
+  card.appendChild(approval);
+
   const details=[
    "श्रेणी: "+(machine.category||"-"),
    "किराया: ₹"+(machine.price??"-")+" / "+(machine.price_unit||"-"),
@@ -105,8 +109,8 @@ async function loadMachines(){
    "तहसील: "+(machine.tehsil||"-"),
    "जिला: "+(machine.district||"-"),
    "राज्य: "+(machine.state||"-"),
-   "स्थिति: "+(machine.availability_status||"available"),
-   "लिस्टिंग: "+(machine.is_active?"Active":"Admin की मंजूरी बाकी")
+   "उपलब्धता: "+(machine.availability_status||"available"),
+   "लिस्टिंग: "+(machine.is_active?"Active":"Inactive")
   ];
 
   details.forEach(value=>{
@@ -116,14 +120,12 @@ async function loadMachines(){
    card.appendChild(p);
   });
 
-  // EDIT MACHINE
   const edit=document.createElement("button");
   edit.className="edit";
   edit.textContent="✏️ Edit Machine";
   edit.onclick=()=>editMachine(machine,edit);
   card.appendChild(edit);
 
-  // CHANGE PHOTO
   const photoButton=document.createElement("button");
   photoButton.className="photo-btn";
   photoButton.textContent="📸 Change Photo";
@@ -133,7 +135,6 @@ async function loadMachines(){
   fileInput.type="file";
   fileInput.accept="image/jpeg,image/png,image/webp";
   fileInput.style.display="none";
-
   photoButton.onclick=()=>fileInput.click();
 
   fileInput.onchange=async()=>{
@@ -145,14 +146,12 @@ async function loadMachines(){
     fileInput.value="";
     return;
    }
-
    if(file.size>5*1024*1024){
-    alert("फोटो का आकार 5 MB से कम होना चाहिए।");
+    alert("फोटो 5 MB से कम होनी चाहिए।");
     fileInput.value="";
     return;
    }
-
-   if(!confirm("क्या आप इस मशीन की फोटो बदलना चाहते हैं?")){
+   if(!confirm("फोटो बदलने पर मशीन दोबारा Admin Approval के लिए जाएगी। जारी रखें?")){
     fileInput.value="";
     return;
    }
@@ -162,15 +161,11 @@ async function loadMachines(){
 
    const extension=file.type==="image/png"?"png":
     file.type==="image/webp"?"webp":"jpg";
-
    const filePath=currentUser.id+"/"+machine.id+"-"+Date.now()+"."+extension;
 
    const {data:uploadData,error:uploadError}=await supabase.storage
     .from("machine-photos")
-    .upload(filePath,file,{
-     contentType:file.type,
-     upsert:false
-    });
+    .upload(filePath,file,{contentType:file.type,upsert:false});
 
    if(uploadError){
     alert("फोटो अपलोड नहीं हुई: "+uploadError.message);
@@ -184,18 +179,22 @@ async function loadMachines(){
     .from("machine-photos")
     .getPublicUrl(uploadData.path);
 
-   const {error:updateError}=await supabase
+   const {data:updateData,error:updateError}=await supabase
     .from("machines")
     .update({machine_photo_url:urlData.publicUrl})
     .eq("id",machine.id)
-    .eq("owner_id",currentUser.id);
+    .eq("owner_id",currentUser.id)
+    .select("id,approval_status,is_active")
+    .maybeSingle();
 
    if(updateError){
-    alert("फोटो अपलोड हुई, लेकिन मशीन में सेव नहीं हुई: "+updateError.message+
-    "\nअपलोड की गई फाइल Storage में रह सकती है।");
+    alert("फोटो मशीन में सेव नहीं हुई: "+updateError.message);
+   }else if(!updateData){
+    alert("मशीन अपडेट नहीं हुई। कृपया Login और RLS Policy जाँचें।");
    }else{
-    alert("मशीन की नई फोटो सफलतापूर्वक सेव हो गई।");
-    loadMachines();
+    alert("फोटो अपडेट हो गई। मौजूदा Approval Status: "+
+     updateData.approval_status+" | Active: "+updateData.is_active);
+    await loadMachines();
    }
 
    photoButton.disabled=false;
@@ -206,16 +205,13 @@ async function loadMachines(){
   card.appendChild(photoButton);
   card.appendChild(fileInput);
 
-  // DELETE MACHINE
   const del=document.createElement("button");
   del.className="danger";
   del.style.marginTop="10px";
   del.style.marginLeft="8px";
   del.textContent="Delete Machine";
-
   del.onclick=async()=>{
    if(!confirm("क्या आप इस मशीन को हटाना चाहते हैं?"))return;
-
    del.disabled=true;
 
    const {error:deleteError}=await supabase
@@ -229,7 +225,7 @@ async function loadMachines(){
     del.disabled=false;
    }else{
     alert("मशीन हटा दी गई।");
-    loadMachines();
+    await loadMachines();
    }
   };
 
@@ -239,36 +235,26 @@ async function loadMachines(){
 }
 
 async function editMachine(machine,button){
-
  const ask=(label,value)=>prompt(label,value??"");
 
  const name=ask("मशीन का नाम:",machine.name);
  if(name===null)return;
-
  const category=ask("मशीन की श्रेणी:",machine.category);
  if(category===null)return;
-
  const description=ask("मशीन का विवरण:",machine.description);
  if(description===null)return;
-
  const price=ask("किराया / कीमत:",machine.price);
  if(price===null)return;
-
  const priceUnit=ask("कीमत की यूनिट:",machine.price_unit);
  if(priceUnit===null)return;
-
  const village=ask("गाँव:",machine.village);
  if(village===null)return;
-
  const tehsil=ask("तहसील:",machine.tehsil);
  if(tehsil===null)return;
-
  const district=ask("जिला:",machine.district);
  if(district===null)return;
-
  const state=ask("राज्य:",machine.state);
  if(state===null)return;
-
  const availability=ask(
   "उपलब्धता: available / booked / maintenance",
   machine.availability_status||"available"
@@ -276,19 +262,15 @@ async function editMachine(machine,button){
  if(availability===null)return;
 
  const cleanPrice=Number(price);
-
  if(!name.trim()||!category.trim()){
   alert("मशीन का नाम और श्रेणी जरूरी है।");
   return;
  }
-
  if(price.trim()===""||!Number.isFinite(cleanPrice)||cleanPrice<0){
   alert("कृपया सही कीमत डालें।");
   return;
  }
-
  const allowed=["available","booked","maintenance"];
-
  if(!allowed.includes(availability.trim().toLowerCase())){
   alert("उपलब्धता available, booked या maintenance होनी चाहिए।");
   return;
@@ -307,16 +289,18 @@ async function editMachine(machine,button){
   availability_status:availability.trim().toLowerCase()
  };
 
- if(!confirm("क्या आप मशीन की जानकारी अपडेट करना चाहते हैं?"))return;
+ if(!confirm("जानकारी बदलने पर मशीन दोबारा Admin Approval के लिए जाएगी। जारी रखें?"))return;
 
  button.disabled=true;
  button.textContent="Saving...";
 
- const {error}=await supabase
+ const {data,error}=await supabase
   .from("machines")
   .update(updated)
   .eq("id",machine.id)
-  .eq("owner_id",currentUser.id);
+  .eq("owner_id",currentUser.id)
+  .select("id,approval_status,is_active")
+  .maybeSingle();
 
  button.disabled=false;
  button.textContent="✏️ Edit Machine";
@@ -325,9 +309,14 @@ async function editMachine(machine,button){
   alert("अपडेट नहीं हुआ: "+error.message);
   return;
  }
+ if(!data){
+  alert("मशीन अपडेट नहीं हुई। Login और RLS Policy जाँचें।");
+  return;
+ }
 
- alert("मशीन की जानकारी अपडेट हो गई।");
- loadMachines();
+ alert("अपडेट सेव हुआ। Approval Status: "+
+  data.approval_status+" | Active: "+data.is_active);
+ await loadMachines();
 }
 
 loadMachines();
