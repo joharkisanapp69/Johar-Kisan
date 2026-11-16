@@ -19,6 +19,7 @@ button:disabled{opacity:.6}
 .info{font-size:14px;color:#526552;overflow-wrap:anywhere;line-height:1.5}
 .danger{background:#a52d2d}
 .secondary{background:#526552}
+.complete{background:#246b38}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .contact{background:#f0f7ef;border-radius:9px;padding:12px;margin-top:12px}
 #message{overflow-wrap:anywhere;line-height:1.5}
@@ -155,21 +156,35 @@ async function loadBookings(view="all"){
 
    card.appendChild(contact);
 
-   if(b.owner_id===user.id && b.status==="pending"){
+   if(b.owner_id===user.id){
     const actions=document.createElement("div");
     actions.className="actions";
 
-    const accept=document.createElement("button");
-    accept.textContent="✅ Accept";
-    accept.onclick=()=>updateStatus(b.id,"accepted");
+    if(b.status==="pending"){
+     const accept=document.createElement("button");
+     accept.textContent="✅ Accept";
+     accept.onclick=()=>updateStatus(b.id,"accepted","pending");
 
-    const cancel=document.createElement("button");
-    cancel.textContent="❌ Cancel";
-    cancel.className="danger";
-    cancel.onclick=()=>updateStatus(b.id,"cancelled");
+     const cancel=document.createElement("button");
+     cancel.textContent="❌ Cancel";
+     cancel.className="danger";
+     cancel.onclick=()=>updateStatus(b.id,"cancelled","pending");
 
-    actions.append(accept,cancel);
-    card.appendChild(actions);
+     actions.append(accept,cancel);
+    }
+
+    if(b.status==="accepted"){
+     const complete=document.createElement("button");
+     complete.textContent="✔ Mark as Completed";
+     complete.className="complete";
+     complete.onclick=()=>updateStatus(b.id,"completed","accepted");
+
+     actions.appendChild(complete);
+    }
+
+    if(actions.children.length>0){
+     card.appendChild(actions);
+    }
    }
 
    list.appendChild(card);
@@ -182,10 +197,14 @@ async function loadBookings(view="all"){
  }
 }
 
-async function updateStatus(id,status){
+async function updateStatus(id,status,oldStatus){
  if(!user)return;
 
- if(!confirm("क्या आप इस Booking का Status बदलना चाहते हैं?"))return;
+ const confirmText=status==="completed"
+  ?"क्या मशीन का काम पूरा हो गया है? Booking को Completed करें?"
+  :"क्या आप इस Booking का Status बदलना चाहते हैं?";
+
+ if(!confirm(confirmText))return;
 
  message.textContent="Status अपडेट हो रहा है...";
 
@@ -194,7 +213,7 @@ async function updateStatus(id,status){
   .update({status})
   .eq("id",id)
   .eq("owner_id",user.id)
-  .eq("status","pending")
+  .eq("status",oldStatus)
   .select("id");
 
  if(error){
