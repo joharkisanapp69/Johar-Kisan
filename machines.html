@@ -22,10 +22,17 @@ button,.book-button{display:inline-block;padding:12px;border:0;border-radius:8px
 .rating{background:#fff8df;padding:10px;border-radius:8px;margin:10px 0;color:#765500;font-size:14px}
 .rating strong{font-size:17px}
 .rating-error{background:#fcefed;color:#9a392e}
+.reviews-section{border-top:1px solid #dce8dc;margin-top:14px;padding-top:12px}
+.reviews-title{font-size:16px;color:#176b35}
+.review-item{background:#f5f9f4;border:1px solid #e0e9df;border-radius:9px;padding:11px;margin:9px 0}
+.review-stars{color:#d58a00;font-size:18px}
+.review-date{font-size:12px;color:#718071;margin-top:5px}
+.review-text{font-size:14px;line-height:1.5;overflow-wrap:anywhere}
+.no-reviews{font-size:13px;color:#647664}
 </style>
 </head>
-<body>
 
+<body>
 <header>
 <h2>🌾 JOHAR KISAN</h2>
 <p>किसानों के लिए मशीनें</p>
@@ -88,24 +95,19 @@ function uniqueValues(values){
   .sort((a,b)=>a.localeCompare(b));
 }
 
-function fillSelect(select,values,defaultText,selectedValue=""){
+function fillSelect(select,values,defaultText){
  select.innerHTML="";
  const first=document.createElement("option");
  first.value="";
  first.textContent=defaultText;
  select.appendChild(first);
 
- const unique=uniqueValues(values);
- unique.forEach(value=>{
+ uniqueValues(values).forEach(value=>{
   const option=document.createElement("option");
   option.value=value;
   option.textContent=value;
   select.appendChild(option);
  });
-
- if(unique.includes(selectedValue)){
-  select.value=selectedValue;
- }
 }
 
 async function loadCategories(){
@@ -131,21 +133,27 @@ function loadLocationFilters(){
  fillSelect(villageSelect,allMachines.flatMap(m=>[m.village,m.locality]),"सभी गाँव और क्षेत्र");
 }
 
-async function loadMachineRatings(machineIds){
+// Rating और Public Reviews साथ में लोड करें
+async function loadMachineData(machineIds){
  const results=await Promise.all(
   machineIds.map(async id=>{
-   const {data,error}=await supabase.rpc("get_machine_rating",{
-    p_machine_id:id
-   });
-
-   if(error){
-    console.error("Rating error:",error.message);
-    return {id,error:true};
-   }
+   const [ratingResult,reviewsResult]=await Promise.all([
+    supabase.rpc("get_machine_rating",{
+     p_machine_id:id
+    }),
+    supabase.rpc("get_public_machine_reviews",{
+     p_machine_id:id
+    })
+   ]);
 
    return {
     id,
-    data:data?.[0]||null
+    rating:ratingResult.error
+     ?{error:true}
+     :{data:ratingResult.data?.[0]||null},
+    reviews:reviewsResult.error
+     ?{error:true}
+     :{data:reviewsResult.data||[]}
    };
   })
  );
@@ -184,6 +192,71 @@ function createRatingElement(result){
  return rating;
 }
 
+function formatDate(value){
+ const d=new Date(value);
+ return Number.isNaN(d.getTime())
+  ?"-"
+  :d.toLocaleDateString("hi-IN");
+}
+
+function createReviewsElement(result){
+ const section=document.createElement("div");
+ section.className="reviews-section";
+
+ const heading=document.createElement("h4");
+ heading.className="reviews-title";
+ heading.textContent="📝 ग्राहक Reviews";
+ section.appendChild(heading);
+
+ if(result?.error){
+  const error=document.createElement("p");
+  error.className="no-reviews";
+  error.textContent="Reviews अभी लोड नहीं हो पाए।";
+  section.appendChild(error);
+  return section;
+ }
+
+ const reviews=result?.data||[];
+
+ if(reviews.length===0){
+  const empty=document.createElement("p");
+  empty.className="no-reviews";
+  empty.textContent="अभी कोई सार्वजनिक Review उपलब्ध नहीं है।";
+  section.appendChild(empty);
+  return section;
+ }
+
+ reviews.forEach(review=>{
+  const item=document.createElement("div");
+  item.className="review-item";
+
+  const stars=document.createElement("div");
+  stars.className="review-stars";
+  const rating=Math.max(0,Math.min(5,Number(review.rating)||0));
+  stars.textContent="★".repeat(rating)+"☆".repeat(5-rating);
+  item.appendChild(stars);
+
+  const reviewText=document.createElement("p");
+  reviewText.className="review-text";
+  reviewText.textContent=review.review_text||"ग्राहक ने केवल Rating दी है।";
+  item.appendChild(reviewText);
+
+  const date=document.createElement("div");
+  date.className="review-date";
+  date.textContent="📅 "+formatDate(review.created_at);
+  item.appendChild(date);
+
+  section.appendChild(item);
+ });
+
+ const footer=document.createElement("p");
+ footer.className="no-reviews";
+ footer.textContent="केवल हाल के सार्वजनिक Reviews दिखाए गए हैं।";
+ section.appendChild(footer);
+
+ return section;
+}
+
 function showMachines(items){
  list.innerHTML="";
 
@@ -194,9 +267,13 @@ function showMachines(items){
 
  message.textContent="मिली हुई मशीनें: "+items.length;
 
+ // हर कार्ड को मशीन ID से जोड़ें
+ const cardsById=new Map();
+
  items.forEach(m=>{
   const card=document.createElement("div");
   card.className="card machine";
+  cardsById.set(m.id,card);
 
   const title=document.createElement("h3");
   title.textContent="🚜 "+m.name;
@@ -255,18 +332,26 @@ function showMachines(items){
   list.appendChild(card);
  });
 
- loadMachineRatings(items.map(m=>m.id)).then(ratings=>{
+ const machineIds=items.map(m=>m.id);
+
+ loadMachineData(machineIds).then(results=>{
+  // पुरानी खोज के परिणाम नए कार्डों को न बदलें
   items.forEach(m=>{
-   const card=[...list.children].find(el=>
-    el.querySelector("h3")?.textContent==="🚜 "+m.name
-   );
-   if(!card)return;
+   const card=cardsById.get(m.id);
+   if(!card||!card.isConnected)return;
+
+   const machineData=results.get(m.id);
+   if(!machineData)return;
 
    const oldRating=card.querySelector(".rating");
    if(oldRating){
-    oldRating.replaceWith(createRatingElement(ratings.get(m.id)));
+    oldRating.replaceWith(createRatingElement(machineData.rating));
    }
+
+   card.appendChild(createReviewsElement(machineData.reviews));
   });
+ }).catch(error=>{
+  console.error("Machine rating/reviews loading error:",error);
  });
 }
 
