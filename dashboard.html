@@ -6,45 +6,169 @@
 <title>JOHAR KISAN Dashboard</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;font-family:Arial;background:#edf5ed;color:#17351e}
-header{background:#176b35;color:white;padding:20px}
-header h2{margin:0}
-main{max-width:600px;margin:auto;padding:15px}
-.card{background:white;padding:17px;margin:12px 0;border-radius:14px;box-shadow:0 2px 8px #0001}
-.menu{display:flex;align-items:center;gap:14px;width:100%;padding:16px;margin:8px 0;border:0;border-radius:10px;background:#f0f7ef;color:#176b35;text-align:left;font-size:16px}
-.menu span{font-size:23px}
-#message{color:#176b35;font-size:14px}
+body{
+ margin:0;
+ font-family:Arial,sans-serif;
+ background:#edf5ed;
+ color:#17351e;
+}
+header{
+ background:#176b35;
+ color:white;
+ padding:20px 16px;
+}
+header h2{margin:0;font-size:23px}
+header p{margin:7px 0 0;font-size:13px}
+main{max-width:700px;margin:auto;padding:14px}
+.card{
+ background:white;
+ padding:17px;
+ margin:13px 0;
+ border-radius:15px;
+ box-shadow:0 2px 8px #0001;
+}
+.card h3{margin:0 0 13px;color:#176b35}
+.menu-container{
+ display:flex;
+ gap:10px;
+ overflow-x:auto;
+ padding:5px 2px 12px;
+ scrollbar-width:thin;
+}
+.menu{
+ flex:0 0 105px;
+ min-width:105px;
+ height:88px;
+ border:0;
+ border-radius:12px;
+ background:#eaf5e9;
+ color:#176b35;
+ display:flex;
+ flex-direction:column;
+ justify-content:center;
+ align-items:center;
+ gap:8px;
+ font-size:13px;
+ font-weight:bold;
+ cursor:pointer;
+}
+.menu span{font-size:25px}
+.menu:active{background:#d5ead4}
+.stats{
+ display:grid;
+ grid-template-columns:1fr 1fr;
+ gap:12px;
+}
+.stat{
+ background:#f0f7ef;
+ border-radius:12px;
+ padding:15px;
+}
+.stat strong{display:block;font-size:23px;color:#176b35}
+.stat small{color:#526b55}
+button.action{
+ width:100%;
+ padding:13px;
+ margin-top:12px;
+ border:0;
+ border-radius:9px;
+ background:#176b35;
+ color:white;
+ font-size:15px;
+}
+.secondary{background:#eaf5e9!important;color:#176b35!important}
+label{display:block;margin:12px 0}
+#message{font-size:13px;color:#176b35;overflow-wrap:anywhere}
+footer{text-align:center;padding:20px;color:#66806a;font-size:12px}
 </style>
 </head>
 <body>
+
 <header>
 <h2>🌾 JOHAR KISAN</h2>
-<p>आपका Dashboard</p>
+<p>हर किसान, हर मशीन, हर सेवा – एक प्लेटफॉर्म</p>
 </header>
+
 <main>
-<div class="card">
-<h3>मेरी प्रोफाइल</h3>
-<p id="email">लोड हो रहा है...</p>
+
+<div class="card" id="home">
+<h3>नमस्कार! स्वागत है 👋</h3>
+<p>आपका JOHAR KISAN Dashboard</p>
+<p id="email">Email लोड हो रहा है...</p>
 <p id="name">नाम लोड हो रहा है...</p>
 <p id="message"></p>
 </div>
+
 <div class="card">
 <h3>Dashboard Menu</h3>
-<button class="menu" onclick="go('home')"><span>🏠</span>Home</button>
-<button class="menu" onclick="go('machines')"><span>🚜</span>My Machines</button>
-<button class="menu" onclick="go('bookings')"><span>📋</span>My Bookings</button>
-<button class="menu" onclick="go('history')"><span>🕘</span>History</button>
-<button class="menu" onclick="go('profile')"><span>👤</span>Profile</button>
-<button class="menu" onclick="go('support')"><span>🎧</span>Help & Support</button>
-<button class="menu" id="logout"><span>🚪</span>Logout</button>
+<div class="menu-container">
+<button class="menu" onclick="showPage('home')">
+<span>🏠</span>Home
+</button>
+<button class="menu" onclick="showPage('machines')">
+<span>🚜</span>My Machines
+</button>
+<button class="menu" onclick="showPage('bookings')">
+<span>📋</span>My Bookings
+</button>
+<button class="menu" onclick="showPage('history')">
+<span>🕘</span>History
+</button>
+<button class="menu" onclick="showPage('profile')">
+<span>👤</span>Profile
+</button>
+<button class="menu" onclick="showPage('support')">
+<span>🎧</span>Help & Support
+</button>
+<button class="menu" id="logout">
+<span>🚪</span>Logout
+</button>
 </div>
+</div>
+
 <div class="card">
-<h3>मेरी भूमिका</h3>
-<label><input type="checkbox" id="customer"> Customer</label><br><br>
-<label><input type="checkbox" id="owner"> Owner</label>
-<button class="menu" id="save">जानकारी सेव करें</button>
+<h3>मेरी जानकारी</h3>
+<div class="stats">
+<div class="stat">
+<strong id="machineCount">—</strong>
+<small>मेरी मशीनें</small>
 </div>
+<div class="stat">
+<strong id="bookingCount">—</strong>
+<small>मेरी बुकिंग</small>
+</div>
+</div>
+<p>ये आँकड़े Database से जुड़ने के बाद दिखेंगे।</p>
+</div>
+
+<div class="card" id="roleCard">
+<h3>मेरी भूमिका</h3>
+<p>एक ही अकाउंट से Customer और Owner दोनों बन सकते हैं।</p>
+<label><input type="checkbox" id="customer"> Customer</label>
+<label><input type="checkbox" id="owner"> Owner</label>
+<button class="action" id="save">जानकारी सेव करें</button>
+</div>
+
+<div class="card" id="pageInfo">
+<h3>Home</h3>
+<p>JOHAR KISAN में आपका स्वागत है।</p>
+</div>
+
+<div class="card">
+<h3>महत्वपूर्ण सुविधाएँ</h3>
+<p>🚜 मशीन खोजें और किराये पर लें</p>
+<p>📋 अपनी बुकिंग देखें</p>
+<p>📍 गाँव और शहर के अनुसार सेवाएँ</p>
+<p>🛡️ सत्यापित Owner और मशीन की जानकारी</p>
+</div>
+
 </main>
+
+<footer>
+JOHAR KISAN © 2026<br>
+किसान की हर जरूरत, अब और भी आसान
+</footer>
+
 <script type="module">
 import {supabase} from "./supabase-config.js";
 
@@ -53,56 +177,98 @@ const nameBox=document.getElementById("name");
 const message=document.getElementById("message");
 const customer=document.getElementById("customer");
 const owner=document.getElementById("owner");
+
 let userId=null;
 
 async function loadDashboard(){
  const {data:authData,error:authError}=await supabase.auth.getUser();
- if(authError||!authData.user){
-  window.location.href="./auth.html";return;
+
+ if(authError || !authData.user){
+  window.location.href="./auth.html";
+  return;
  }
+
  const user=authData.user;
  userId=user.id;
- emailBox.textContent="Email: "+user.email;
 
- const {data,error}=await supabase.from("profiles")
+ emailBox.textContent="Email: "+(user.email||"उपलब्ध नहीं");
+
+ const {data,error}=await supabase
+ .from("profiles")
  .select("full_name,is_customer,is_owner")
- .eq("id",userId).maybeSingle();
+ .eq("id",userId)
+ .maybeSingle();
 
  if(error){
-  message.textContent="Profile error: "+error.message;return;
+  message.textContent="Profile लोड नहीं हुई: "+error.message;
+  return;
  }
- nameBox.textContent=data?.full_name?
- "नाम: "+data.full_name:"नाम अभी उपलब्ध नहीं है।";
- customer.checked=data?.is_customer??true;
- owner.checked=data?.is_owner??false;
+
+ const profileName=data?.full_name || user.user_metadata?.full_name;
+ nameBox.textContent=profileName
+  ? "नाम: "+profileName
+  : "नाम अभी Database में उपलब्ध नहीं है।";
+
+ customer.checked=data?.is_customer ?? true;
+ owner.checked=data?.is_owner ?? false;
 }
 
 document.getElementById("save").onclick=async()=>{
  if(!userId)return;
+
+ if(!customer.checked && !owner.checked){
+  message.textContent="कम से कम एक भूमिका चुनें।";
+  return;
+ }
+
  message.textContent="सेव हो रहा है...";
- const {error}=await supabase.from("profiles")
- .update({is_customer:customer.checked,is_owner:owner.checked})
+
+ const {error}=await supabase
+ .from("profiles")
+ .update({
+  is_customer:customer.checked,
+  is_owner:owner.checked
+ })
  .eq("id",userId);
- message.textContent=error?
- "सेव नहीं हुआ: "+error.message:"आपकी भूमिका सेव हो गई।";
+
+ message.textContent=error
+  ? "सेव नहीं हुआ: "+error.message
+  : "आपकी भूमिका सफलतापूर्वक सेव हो गई।";
+};
+
+window.showPage=function(page){
+ const titles={
+  home:"Home",
+  machines:"My Machines",
+  bookings:"My Bookings",
+  history:"History",
+  profile:"Profile",
+  support:"Help & Support"
+ };
+
+ const descriptions={
+  home:"JOHAR KISAN में आपका स्वागत है।",
+  machines:"मशीन जोड़ने, Edit और Delete करने की सुविधा अगले चरण में बनेगी।",
+  bookings:"आपकी नई और पुरानी बुकिंग यहाँ दिखाई जाएगी।",
+  history:"Customer और Owner की पुरानी गतिविधियों का रिकॉर्ड यहाँ मिलेगा।",
+  profile:"आपकी व्यक्तिगत जानकारी और अकाउंट सेटिंग यहाँ आएँगी।",
+  support:"सहायता और शिकायत दर्ज करने की सुविधा अगले चरण में बनेगी।"
+ };
+
+ document.getElementById("pageInfo").scrollIntoView({behavior:"smooth"});
+ document.querySelector("#pageInfo h3").textContent=titles[page];
+ document.querySelector("#pageInfo p").textContent=descriptions[page];
 };
 
 document.getElementById("logout").onclick=async()=>{
  const {error}=await supabase.auth.signOut();
- if(error){message.textContent=error.message;return;}
- window.location.href="./auth.html";
-};
 
-window.go=function(page){
- const messages={
- home:"आप Home पेज पर हैं।",
- machines:"Machine Listing अगला चरण है।",
- bookings:"Booking System अगला चरण है।",
- history:"History System अगला चरण है।",
- profile:"Profile विकल्प चुना गया।",
- support:"Help & Support अगला चरण है।"
- };
- message.textContent=messages[page]||"";
+ if(error){
+  message.textContent="Logout नहीं हुआ: "+error.message;
+  return;
+ }
+
+ window.location.href="./auth.html";
 };
 
 loadDashboard();
