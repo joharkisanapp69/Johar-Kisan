@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOHAR KISAN - Categories</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;
+ font-family:Arial,sans-serif;
+ background:#edf5ed;
+ color:#17351e;
+}
+header{
+ background:#176b35;
+ color:white;
+ padding:18px;
+}
+main{
+ max-width:750px;
+ margin:auto;
+ padding:15px;
+}
+.card{
+ background:white;
+ padding:16px;
+ border-radius:13px;
+ margin:13px 0;
+ box-shadow:0 2px 8px #0001;
+}
+h2,h3{margin-top:0}
+input,button{
+ width:100%;
+ padding:12px;
+ border-radius:8px;
+ border:1px solid #aaa;
+ font-size:15px;
+ margin:6px 0;
+}
+button{
+ background:#176b35;
+ color:white;
+ border:0;
+ cursor:pointer;
+}
+button:disabled{opacity:.6}
+.secondary{background:#607360}
+.danger{background:#b52b2b}
+.category{
+ border-left:4px solid #176b35;
+}
+.category-actions{
+ display:grid;
+ grid-template-columns:1fr 1fr 1fr;
+ gap:7px;
+ margin-top:12px;
+}
+.category-actions button{
+ font-size:12px;
+ padding:10px 5px;
+}
+.status{
+ font-size:13px;
+ color:#176b35;
+}
+.inactive{color:#b52b2b}
+#message{overflow-wrap:anywhere}
+@media(max-width:400px){
+ .category-actions{grid-template-columns:1fr}
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<h2>🛡️ JOHAR KISAN</h2>
+<p>Admin Categories Management</p>
+</header>
+
+<main>
+
+<div class="card">
+<h3>➕ Add New Category</h3>
+
+<input
+ id="categoryName"
+ type="text"
+ maxlength="60"
+ placeholder="Category का नाम लिखें">
+
+<button id="addBtn">+ Add Category</button>
+
+<p id="message">लोड हो रहा है...</p>
+</div>
+
+<div class="card">
+<h3>📂 All Categories</h3>
+<p id="count">Total Categories: 0</p>
+<button id="refreshBtn" class="secondary">↻ Refresh Categories</button>
+</div>
+
+<div id="categories"></div>
+
+</main>
+
+<script type="module">
+import {supabase} from "./supabase-config.js";
+
+const message=document.getElementById("message");
+const categoriesBox=document.getElementById("categories");
+const nameInput=document.getElementById("categoryName");
+
+let currentUser=null;
+let categories=[];
+
+async function checkAdmin(){
+
+ const {data,error}=await supabase.auth.getUser();
+
+ if(error || !data.user){
+  location.href="./auth.html";
+  return false;
+ }
+
+ currentUser=data.user;
+
+ const {data:profile,error:profileError}=await supabase
+  .from("profiles")
+  .select("is_admin")
+  .eq("id",currentUser.id)
+  .maybeSingle();
+
+ if(profileError || profile?.is_admin!==true){
+  document.body.innerHTML=
+   "<h2 style='padding:25px'>Access Denied: केवल Admin के लिए।</h2>";
+  return false;
+ }
+
+ return true;
+}
+
+async function loadCategories(){
+
+ message.textContent="Categories लोड हो रही हैं...";
+ categoriesBox.innerHTML="";
+
+ const {data,error}=await supabase
+  .from("categories")
+  .select("id,name,is_active,created_at")
+  .order("name");
+
+ if(error){
+  message.textContent="Error: "+error.message;
+  return;
+ }
+
+ categories=data||[];
+
+ document.getElementById("count").textContent=
+  "Total Categories: "+categories.length;
+
+ message.textContent="Categories सफलतापूर्वक लोड हुईं।";
+
+ renderCategories();
+}
+
+function renderCategories(){
+
+ categoriesBox.innerHTML="";
+
+ if(categories.length===0){
+  categoriesBox.textContent="अभी कोई Category नहीं है।";
+  return;
+ }
+
+ categories.forEach(category=>{
+
+  const card=document.createElement("div");
+  card.className="card category";
+
+  const title=document.createElement("h3");
+  title.textContent="📁 "+category.name;
+
+  const status=document.createElement("p");
+  status.className=category.is_active?"status":"status inactive";
+  status.textContent=category.is_active?
+   "● Active":"● Inactive";
+
+  const actions=document.createElement("div");
+  actions.className="category-actions";
+
+  const editBtn=document.createElement("button");
+  editBtn.textContent="✏️ Edit";
+  editBtn.className="secondary";
+  editBtn.onclick=()=>editCategory(category);
+
+  const toggleBtn=document.createElement("button");
+  toggleBtn.textContent=category.is_active?
+   "Deactivate":"Activate";
+  toggleBtn.className="secondary";
+  toggleBtn.onclick=()=>toggleCategory(category);
+
+  const deleteBtn=document.createElement("button");
+  deleteBtn.textContent="🗑️ Delete";
+  deleteBtn.className="danger";
+  deleteBtn.onclick=()=>deleteCategory(category);
+
+  actions.append(editBtn,toggleBtn,deleteBtn);
+  card.append(title,status,actions);
+  categoriesBox.appendChild(card);
+
+ });
+}
+
+async function addCategory(){
+
+ const name=nameInput.value.trim();
+
+ if(!name){
+  message.textContent="पहले Category का नाम लिखें।";
+  return;
+ }
+
+ if(name.length>60){
+  message.textContent="Category का नाम 60 अक्षरों से छोटा रखें।";
+  return;
+ }
+
+ const button=document.getElementById("addBtn");
+ button.disabled=true;
+
+ const {error}=await supabase
+  .from("categories")
+  .insert({
+   name:name,
+   is_active:true
+  });
+
+ button.disabled=false;
+
+ if(error){
+  message.textContent=error.code==="23505"?
+   "यह Category पहले से मौजूद है।":
+   "Error: "+error.message;
+  return;
+ }
+
+ nameInput.value="";
+ message.textContent="Category सफलतापूर्वक जोड़ दी गई।";
+
+ await loadCategories();
+}
+
+async function editCategory(category){
+
+ const newName=prompt(
+  "Category का नया नाम लिखें:",
+  category.name
+ );
+
+ if(newName===null)return;
+
+ const name=newName.trim();
+
+ if(!name){
+  alert("Category का नाम खाली नहीं हो सकता।");
+  return;
+ }
+
+ if(name.length>60){
+  alert("Category का नाम 60 अक्षरों से छोटा रखें।");
+  return;
+ }
+
+ const {error}=await supabase
+  .from("categories")
+  .update({name:name})
+  .eq("id",category.id);
+
+ if(error){
+  alert(error.code==="23505"?
+   "यह Category पहले से मौजूद है।":
+   error.message);
+  return;
+ }
+
+ alert("Category Update Success!");
+ await loadCategories();
+}
+
+async function toggleCategory(category){
+
+ const action=category.is_active?"Inactive":"Active";
+
+ if(!confirm("क्या आप इस Category को "+action+" करना चाहते हैं?")){
+  return;
+ }
+
+ const {error}=await supabase
+  .from("categories")
+  .update({is_active:!category.is_active})
+  .eq("id",category.id);
+
+ if(error){
+  alert("Error: "+error.message);
+  return;
+ }
+
+ await loadCategories();
+}
+
+async function deleteCategory(category){
+
+ if(!confirm(
+  "क्या आप '"+category.name+"' Category को हमेशा के लिए Delete करना चाहते हैं?"
+  )){
+  return;
+ }
+
+ const {error}=await supabase
+  .from("categories")
+  .delete()
+  .eq("id",category.id);
+
+ if(error){
+  alert("Delete Error: "+error.message);
+  return;
+ }
+
+ alert("Category Delete Success!");
+ await loadCategories();
+}
+
+document.getElementById("addBtn").onclick=addCategory;
+document.getElementById("refreshBtn").onclick=loadCategories;
+
+if(await checkAdmin()){
+ await loadCategories();
+}
+</script>
+
+</body>
+</html>
