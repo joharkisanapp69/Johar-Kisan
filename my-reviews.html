@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOHAR KISAN - My Reviews</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;
+ font-family:Arial,sans-serif;
+ background:#edf5ed;
+ color:#17351e;
+}
+header{
+ background:#176b35;
+ color:white;
+ padding:18px;
+}
+main{
+ max-width:750px;
+ margin:auto;
+ padding:14px;
+}
+.card{
+ background:white;
+ padding:17px;
+ margin:13px 0;
+ border-radius:13px;
+ box-shadow:0 2px 8px #0001;
+}
+button{
+ padding:11px 15px;
+ border:0;
+ border-radius:8px;
+ background:#176b35;
+ color:white;
+ cursor:pointer;
+}
+.summary{
+ display:grid;
+ grid-template-columns:repeat(2,1fr);
+ gap:10px;
+}
+.stat{
+ background:#f0f7ef;
+ padding:15px;
+ border-radius:10px;
+ text-align:center;
+}
+.number{
+ font-size:27px;
+ font-weight:bold;
+ color:#176b35;
+}
+.stars{
+ color:#d58a00;
+ font-size:21px;
+ letter-spacing:2px;
+}
+.review{
+ border:1px solid #dce8dc;
+ border-radius:10px;
+ padding:13px;
+ margin:12px 0;
+ overflow-wrap:anywhere;
+}
+.info{
+ color:#526552;
+ font-size:14px;
+ line-height:1.5;
+}
+.bar-row{
+ display:flex;
+ align-items:center;
+ gap:8px;
+ margin:9px 0;
+ font-size:14px;
+}
+.bar{
+ flex:1;
+ height:10px;
+ background:#e2e9e2;
+ border-radius:10px;
+ overflow:hidden;
+}
+.fill{
+ height:100%;
+ background:#d9a321;
+}
+#message{
+ line-height:1.5;
+ overflow-wrap:anywhere;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<h2>🌾 JOHAR KISAN</h2>
+<p>⭐ मेरी Ratings और Reviews</p>
+</header>
+
+<main>
+
+<div class="card">
+<button onclick="location.href='./dashboard.html'">
+← Dashboard
+</button>
+
+<h2>⭐ Owner Reviews Dashboard</h2>
+<p id="message">Reviews लोड हो रहे हैं...</p>
+</div>
+
+<div class="card">
+<h3>📊 Rating Summary</h3>
+
+<div class="summary">
+ <div class="stat">
+  <div class="number" id="average">0.0</div>
+  <div class="stars" id="averageStars">☆☆☆☆☆</div>
+  <div class="info">Average Rating</div>
+ </div>
+
+ <div class="stat">
+  <div class="number" id="total">0</div>
+  <div class="info">Total Reviews</div>
+ </div>
+</div>
+
+<h3>Rating Details</h3>
+<div id="ratingBars"></div>
+</div>
+
+<div class="card">
+<h3>📝 Customer Reviews</h3>
+<div id="reviewList"></div>
+</div>
+
+</main>
+
+<script type="module">
+import {supabase} from "./supabase-config.js";
+
+const message=document.getElementById("message");
+const reviewList=document.getElementById("reviewList");
+const ratingBars=document.getElementById("ratingBars");
+
+function makeStars(rating){
+ return "★".repeat(rating)+"☆".repeat(5-rating);
+}
+
+function addText(parent,text,className="info"){
+ const p=document.createElement("p");
+ p.className=className;
+ p.textContent=text;
+ parent.appendChild(p);
+}
+
+function formatDate(value){
+ if(!value)return "-";
+
+ const date=new Date(value);
+ if(Number.isNaN(date.getTime()))return "-";
+
+ return date.toLocaleDateString("hi-IN");
+}
+
+function showSummary(reviews){
+ const total=reviews.length;
+
+ const average=total
+  ?reviews.reduce((sum,r)=>sum+Number(r.rating),0)/total
+  :0;
+
+ document.getElementById("average").textContent=average.toFixed(1);
+ document.getElementById("total").textContent=total;
+ document.getElementById("averageStars").textContent=
+  makeStars(Math.round(average));
+
+ ratingBars.innerHTML="";
+
+ for(let star=5;star>=1;star--){
+  const count=reviews.filter(r=>Number(r.rating)===star).length;
+  const percent=total?(count/total)*100:0;
+
+  const row=document.createElement("div");
+  row.className="bar-row";
+
+  const label=document.createElement("span");
+  label.textContent=star+" ⭐";
+
+  const bar=document.createElement("div");
+  bar.className="bar";
+
+  const fill=document.createElement("div");
+  fill.className="fill";
+  fill.style.width=percent+"%";
+
+  bar.appendChild(fill);
+
+  const value=document.createElement("span");
+  value.textContent=count;
+
+  row.append(label,bar,value);
+  ratingBars.appendChild(row);
+ }
+}
+
+async function loadReviews(){
+ message.textContent="Reviews लोड हो रहे हैं...";
+ reviewList.innerHTML="";
+
+ try{
+  const {data:authData,error:authError}=
+   await supabase.auth.getUser();
+
+  if(authError)throw authError;
+
+  if(!authData.user){
+   location.href="./auth.html";
+   return;
+  }
+
+  const user=authData.user;
+
+  const {data,error}=await supabase
+   .from("reviews")
+   .select("id,booking_id,rating,review_text,created_at")
+   .eq("owner_id",user.id)
+   .order("created_at",{ascending:false});
+
+  if(error)throw error;
+
+  const reviews=data||[];
+
+  showSummary(reviews);
+
+  if(reviews.length===0){
+   message.textContent="अभी तक कोई Review नहीं मिला है।";
+   reviewList.textContent="जब Customer आपकी Completed Booking पर Review देगा, वह यहाँ दिखाई देगा।";
+   return;
+  }
+
+  message.textContent="कुल Reviews: "+reviews.length;
+
+  reviews.forEach(r=>{
+   const card=document.createElement("div");
+   card.className="review";
+
+   const stars=document.createElement("div");
+   stars.className="stars";
+   stars.textContent=makeStars(Number(r.rating));
+
+   const rating=document.createElement("strong");
+   rating.textContent=" "+r.rating+"/5";
+
+   card.append(stars,rating);
+
+   addText(card,"Booking ID: "+r.booking_id);
+
+   if(r.review_text){
+    addText(card,"Customer Review: "+r.review_text);
+   }else{
+    addText(card,"Customer ने केवल Rating दी है।");
+   }
+
+   addText(card,"तारीख: "+formatDate(r.created_at));
+
+   reviewList.appendChild(card);
+  });
+
+ }catch(error){
+  message.textContent="त्रुटि: "+error.message;
+ }
+}
+
+loadReviews();
+</script>
+
+</body>
+</html>
