@@ -23,8 +23,9 @@ main{max-width:700px;margin:auto;padding:14px}
 .stat small{color:#526b55}
 button.action{width:100%;padding:13px;margin-top:12px;border:0;border-radius:9px;background:#176b35;color:white;font-size:15px;cursor:pointer}
 button.machine-action{background:#e5f3e5;color:#176b35;border:1px solid #176b35;font-weight:bold}
+button:disabled{opacity:.6}
 label{display:block;margin:12px 0}
-input[type="tel"]{width:100%;padding:13px;border:1px solid #b9cdb9;border-radius:9px;font-size:16px;margin-top:7px}
+input[type="tel"],input[type="text"]{width:100%;padding:13px;border:1px solid #b9cdb9;border-radius:9px;font-size:16px;margin-top:7px}
 #message,#statsMessage,#profileMessage{font-size:13px;color:#176b35;overflow-wrap:anywhere}
 footer{text-align:center;padding:20px;color:#66806a;font-size:12px}
 </style>
@@ -51,13 +52,9 @@ footer{text-align:center;padding:20px;color:#66806a;font-size:12px}
 <div class="menu-container">
 
 <button class="menu" onclick="showPage('home')"><span>🏠</span>Home</button>
-
 <button class="menu" onclick="location.href='./machines.html'"><span>🔎</span>मशीनें देखें</button>
-
 <button class="menu" onclick="location.href='./my-machines.html'"><span>🚜</span>My Machines</button>
-
 <button class="menu" onclick="location.href='./add-machine.html'"><span>➕</span>Add Machine</button>
-
 <button class="menu" onclick="location.href='./my-bookings.html'"><span>📋</span>My Bookings</button>
 
 <button class="menu" onclick="location.href='./notifications.html'">
@@ -66,11 +63,8 @@ footer{text-align:center;padding:20px;color:#66806a;font-size:12px}
 </button>
 
 <button class="menu" onclick="location.href='./my-reviews.html'"><span>⭐</span>My Reviews</button>
-
 <button class="menu" onclick="showPage('history')"><span>🕘</span>History</button>
-
 <button class="menu" onclick="showPage('profile')"><span>👤</span>Profile</button>
-
 <button class="menu" onclick="location.href='./support.html'"><span>🎧</span>Help & Support</button>
 
 <button class="menu" id="adminSupport" style="display:none"
@@ -91,9 +85,7 @@ onclick="location.href='./admin-users.html'">
 <div class="card">
 <h3>🚜 किसानों के लिए मशीनें</h3>
 <p>अपने गाँव और आसपास उपलब्ध मशीनें देखें और किराये की जानकारी पाएँ।</p>
-<button class="action machine-action" onclick="location.href='./machines.html'">
-🔎 सभी मशीनें देखें
-</button>
+<button class="action machine-action" onclick="location.href='./machines.html'">🔎 सभी मशीनें देखें</button>
 </div>
 
 <div class="card">
@@ -274,18 +266,33 @@ window.showPage=async function(page){
  if(page==="profile"){
   pageInfo.innerHTML=`
    <h3>👤 मेरी Profile</h3>
-   <p><b>नाम:</b> <span id="profileName"></span></p>
+
+   <label>नाम
+    <input type="text" id="editProfileName"
+    maxlength="80" placeholder="अपना नाम लिखें">
+   </label>
+
+   <button class="action" id="saveProfileName">
+    💾 नाम अपडेट करें
+   </button>
+
    <p><b>Email:</b> <span id="profileEmail"></span></p>
    <p><b>मेरी भूमिका:</b> <span id="profileRole"></span></p>
+
    <label>मोबाइल नंबर
     <input type="tel" id="profilePhone" maxlength="10"
     inputmode="numeric" placeholder="10 अंकों का मोबाइल नंबर">
    </label>
+
    <button class="action" id="savePhone">📱 मोबाइल नंबर सेव करें</button>
-   <p id="profileMessage">मोबाइल नंबर लोड हो रहा है...</p>
+   <p id="profileMessage">Profile लोड हो रही है...</p>
   `;
 
-  document.getElementById("profileName").textContent=currentProfileName;
+  const profileMessage=document.getElementById("profileMessage");
+  const nameInput=document.getElementById("editProfileName");
+  const saveName=document.getElementById("saveProfileName");
+
+  nameInput.value=currentProfileName;
   document.getElementById("profileEmail").textContent=currentUser?.email||"उपलब्ध नहीं";
 
   let roles=[];
@@ -294,8 +301,34 @@ window.showPage=async function(page){
 
   document.getElementById("profileRole").textContent=roles.join(" और ")||"अभी कोई भूमिका नहीं";
 
+  saveName.onclick=async()=>{
+   const newName=nameInput.value.trim();
+
+   if(newName.length<2||newName.length>80){
+    profileMessage.textContent="नाम 2 से 80 अक्षरों के बीच होना चाहिए।";
+    return;
+   }
+
+   saveName.disabled=true;
+   profileMessage.textContent="नाम अपडेट हो रहा है...";
+
+   const {error}=await supabase.rpc(
+    "update_my_profile_name",
+    {p_name:newName}
+   );
+
+   if(error){
+    profileMessage.textContent="नाम अपडेट नहीं हुआ: "+error.message;
+   }else{
+    currentProfileName=newName;
+    nameBox.textContent="नाम: "+newName;
+    profileMessage.textContent="नाम सफलतापूर्वक अपडेट हो गया।";
+   }
+
+   saveName.disabled=false;
+  };
+
   const phoneInput=document.getElementById("profilePhone");
-  const profileMessage=document.getElementById("profileMessage");
   const savePhone=document.getElementById("savePhone");
 
   const {data:phone,error:phoneError}=await supabase.rpc("get_my_phone");
@@ -358,10 +391,7 @@ document.getElementById("logout").onclick=async()=>{
 };
 
 loadDashboard();
-
-// Dashboard खुला रहने पर हर 30 सेकंड में Unread Count अपडेट
 setInterval(loadNotificationCount,30000);
-
 </script>
 </body>
 </html>
