@@ -7,100 +7,36 @@
 
 <style>
 *{box-sizing:border-box}
-body{
- margin:0;
- font-family:Arial,sans-serif;
- background:#edf5ed;
- color:#17351e;
-}
-header{
- background:#176b35;
- color:white;
- padding:18px;
-}
-main{
- max-width:700px;
- margin:auto;
- padding:14px;
-}
-.card{
- background:white;
- padding:15px;
- border-radius:12px;
- margin:13px 0;
- box-shadow:0 2px 8px #0001;
-}
-.machine img{
- width:100%;
- max-height:220px;
- object-fit:cover;
- border-radius:9px;
-}
+body{margin:0;font-family:Arial,sans-serif;background:#edf5ed;color:#17351e}
+header{background:#176b35;color:white;padding:18px}
+main{max-width:700px;margin:auto;padding:14px}
+.card{background:white;padding:15px;border-radius:12px;margin:13px 0;box-shadow:0 2px 8px #0001}
+.machine img{width:100%;max-height:220px;object-fit:cover;border-radius:9px}
 .machine h3{color:#176b35}
-input,select{
- width:100%;
- padding:12px;
- margin:6px 0;
- border:1px solid #ccd8cc;
- border-radius:8px;
- background:white;
- font-size:15px;
-}
-button,.book-button{
- display:inline-block;
- padding:12px;
- border:0;
- border-radius:8px;
- background:#176b35;
- color:white;
- font-size:14px;
- text-decoration:none;
- cursor:pointer;
- text-align:center;
-}
+input,select{width:100%;padding:12px;margin:6px 0;border:1px solid #ccd8cc;border-radius:8px;background:white;font-size:15px}
+button,.book-button{display:inline-block;padding:12px;border:0;border-radius:8px;background:#176b35;color:white;font-size:14px;text-decoration:none;cursor:pointer;text-align:center}
 button:disabled{opacity:.6}
 .reset{background:#647664}
-.book-button{
- display:block;
- width:100%;
- margin-top:14px;
- font-weight:bold;
- font-size:16px;
-}
-.muted{
- color:#647664;
- font-size:13px;
-}
-.status{
- background:#eaf5e9;
- padding:9px;
- border-radius:8px;
- font-size:13px;
-}
-.filter-label{
- display:block;
- margin-top:9px;
- font-size:13px;
- font-weight:bold;
- color:#315c38;
-}
+.book-button{display:block;width:100%;margin-top:14px;font-weight:bold;font-size:16px}
+.muted{color:#647664;font-size:13px}
+.status{background:#eaf5e9;padding:9px;border-radius:8px;font-size:13px}
+.filter-label{display:block;margin-top:9px;font-size:13px;font-weight:bold;color:#315c38}
+.rating{background:#fff8df;padding:10px;border-radius:8px;margin:10px 0;color:#765500;font-size:14px}
+.rating strong{font-size:17px}
 </style>
 </head>
 
 <body>
-
 <header>
 <h2>🌾 JOHAR KISAN</h2>
 <p>किसानों के लिए मशीनें</p>
 </header>
 
 <main>
-
 <div class="card">
 <h3>🔍 मशीन खोजें</h3>
 
-<input id="search"
-placeholder="मशीन का नाम लिखें...">
+<input id="search" placeholder="मशीन का नाम लिखें...">
 
 <label class="filter-label">श्रेणी चुनें</label>
 <select id="category">
@@ -108,24 +44,16 @@ placeholder="मशीन का नाम लिखें...">
 </select>
 
 <label class="filter-label">राज्य चुनें</label>
-<select id="state">
-<option value="">सभी राज्य</option>
-</select>
+<select id="state"><option value="">सभी राज्य</option></select>
 
 <label class="filter-label">जिला चुनें</label>
-<select id="district">
-<option value="">सभी जिले</option>
-</select>
+<select id="district"><option value="">सभी जिले</option></select>
 
 <label class="filter-label">तहसील चुनें</label>
-<select id="tehsil">
-<option value="">सभी तहसील</option>
-</select>
+<select id="tehsil"><option value="">सभी तहसील</option></select>
 
 <label class="filter-label">गाँव / स्थानीय क्षेत्र चुनें</label>
-<select id="village">
-<option value="">सभी गाँव और क्षेत्र</option>
-</select>
+<select id="village"><option value="">सभी गाँव और क्षेत्र</option></select>
 
 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
 <button id="searchBtn">🔍 खोजें</button>
@@ -137,7 +65,6 @@ placeholder="मशीन का नाम लिखें...">
 </div>
 
 <div id="machineList"></div>
-
 </main>
 
 <script type="module">
@@ -145,7 +72,6 @@ import {supabase} from "./supabase-config.js";
 
 const list=document.getElementById("machineList");
 const message=document.getElementById("message");
-
 const searchInput=document.getElementById("search");
 const categorySelect=document.getElementById("category");
 const stateSelect=document.getElementById("state");
@@ -160,14 +86,12 @@ function clean(value){
 }
 
 function uniqueValues(values){
- return [...new Set(
-  values.map(clean).filter(Boolean)
- )].sort((a,b)=>a.localeCompare(b));
+ return [...new Set(values.map(clean).filter(Boolean))]
+  .sort((a,b)=>a.localeCompare(b));
 }
 
 function fillSelect(select,values,defaultText,selectedValue=""){
  select.innerHTML="";
-
  const first=document.createElement("option");
  first.value="";
  first.textContent=defaultText;
@@ -194,45 +118,61 @@ async function loadCategories(){
 
  if(error){
   console.error("Category loading error:",error.message);
-  fillSelect(
-   categorySelect,
-   allMachines.map(m=>m.category),
-   "सभी श्रेणियाँ"
-  );
+  fillSelect(categorySelect,allMachines.map(m=>m.category),"सभी श्रेणियाँ");
   return;
  }
 
- fillSelect(
-  categorySelect,
-  (data||[]).map(c=>c.name),
-  "सभी श्रेणियाँ"
- );
+ fillSelect(categorySelect,(data||[]).map(c=>c.name),"सभी श्रेणियाँ");
 }
 
 function loadLocationFilters(){
- fillSelect(
-  stateSelect,
-  allMachines.map(m=>m.state),
-  "सभी राज्य"
- );
+ fillSelect(stateSelect,allMachines.map(m=>m.state),"सभी राज्य");
+ fillSelect(districtSelect,allMachines.map(m=>m.district),"सभी जिले");
+ fillSelect(tehsilSelect,allMachines.map(m=>m.tehsil),"सभी तहसील");
+ fillSelect(villageSelect,allMachines.flatMap(m=>[m.village,m.locality]),"सभी गाँव और क्षेत्र");
+}
 
- fillSelect(
-  districtSelect,
-  allMachines.map(m=>m.district),
-  "सभी जिले"
- );
+// प्रत्येक मशीन की सार्वजनिक औसत रेटिंग लोड करें
+async function loadMachineRating(machineId){
+ const {data,error}=await supabase.rpc("get_machine_rating",{
+  p_machine_id:machineId
+ });
 
- fillSelect(
-  tehsilSelect,
-  allMachines.map(m=>m.tehsil),
-  "सभी तहसील"
- );
+ if(error){
+  console.error("Rating error:",error.message);
+  return null;
+ }
 
- fillSelect(
-  villageSelect,
-  allMachines.flatMap(m=>[m.village,m.locality]),
-  "सभी गाँव और क्षेत्र"
- );
+ if(!data || data.length===0) return null;
+ return data[0];
+}
+
+function createRatingElement(ratingData){
+ const rating=document.createElement("div");
+ rating.className="rating";
+
+ if(!ratingData){
+  rating.textContent="⭐ अभी कोई रिव्यू नहीं";
+  return rating;
+ }
+
+ const average=Number(ratingData.average_rating||0);
+ const total=Number(ratingData.total_reviews||0);
+
+ if(total===0){
+  rating.textContent="⭐ अभी कोई रिव्यू नहीं";
+  return rating;
+ }
+
+ const strong=document.createElement("strong");
+ strong.textContent="⭐ "+average.toFixed(1)+" / 5";
+ rating.appendChild(strong);
+
+ const count=document.createElement("span");
+ count.textContent="  ("+total+" Reviews)";
+ rating.appendChild(count);
+
+ return rating;
 }
 
 function showMachines(items){
@@ -261,6 +201,16 @@ function showMachines(items){
    card.appendChild(img);
   }
 
+  const ratingBox=document.createElement("div");
+  ratingBox.className="rating";
+  ratingBox.textContent="⭐ रेटिंग लोड हो रही है...";
+  card.appendChild(ratingBox);
+
+  loadMachineRating(m.id).then(data=>{
+   const newRating=createRatingElement(data);
+   ratingBox.replaceWith(newRating);
+  });
+
   const details=[
    "श्रेणी: "+(m.category||"-"),
    "किराया: ₹"+(m.price??"-")+" / "+(m.price_unit||"-"),
@@ -280,7 +230,6 @@ function showMachines(items){
   });
 
   const availability=m.availability_status||"available";
-
   const status=document.createElement("p");
   status.className="status";
   status.textContent="उपलब्धता: "+availability;
@@ -290,8 +239,7 @@ function showMachines(items){
    const book=document.createElement("a");
    book.className="book-button";
    book.textContent="📅 इस मशीन की बुकिंग करें";
-   book.href="./book-machine.html?machine_id="+
-    encodeURIComponent(m.id);
+   book.href="./book-machine.html?machine_id="+encodeURIComponent(m.id);
    card.appendChild(book);
   }else{
    const unavailable=document.createElement("p");
@@ -356,18 +304,13 @@ async function loadMachines(){
  }
 
  allMachines=data||[];
-
  await loadCategories();
  loadLocationFilters();
  showMachines(allMachines);
 }
 
-document.getElementById("searchBtn")
- .addEventListener("click",searchMachines);
-
-document.getElementById("resetBtn")
- .addEventListener("click",resetFilters);
-
+document.getElementById("searchBtn").addEventListener("click",searchMachines);
+document.getElementById("resetBtn").addEventListener("click",resetFilters);
 searchInput.addEventListener("input",searchMachines);
 categorySelect.addEventListener("change",searchMachines);
 stateSelect.addEventListener("change",searchMachines);
@@ -377,6 +320,5 @@ villageSelect.addEventListener("change",searchMachines);
 
 loadMachines();
 </script>
-
 </body>
 </html>
