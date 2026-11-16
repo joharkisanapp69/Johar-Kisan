@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="hi">
 <head>
@@ -25,9 +24,11 @@ button:disabled{opacity:.6}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .call{display:inline-block;background:#176b35;color:white;padding:10px 13px;border-radius:8px;text-decoration:none;margin:5px 5px 5px 0}
 #message{overflow-wrap:anywhere;line-height:1.5}
+.notification{display:none;background:#e1f3df;border:1px solid #176b35}
 </style>
 </head>
 <body>
+
 <header>
 <h2>🌾 JOHAR KISAN</h2>
 <p>मेरी बुकिंग</p>
@@ -46,6 +47,15 @@ button:disabled{opacity:.6}
 </div>
 
 <p id="message">बुकिंग लोड हो रही हैं...</p>
+
+<div id="notification" class="card notification">
+<strong>🔔 नई सूचना</strong>
+<p id="notificationText"></p>
+<button onclick="document.getElementById('notification').style.display='none'">
+ठीक है
+</button>
+</div>
+
 <div id="bookingList"></div>
 </div>
 </main>
@@ -59,6 +69,7 @@ const list=document.getElementById("bookingList");
 let user=null;
 let currentView="all";
 let loading=false;
+let bookingChannel=null;
 
 const statusHindi={
  pending:"⏳ Pending - जवाब बाकी",
@@ -72,6 +83,72 @@ function addText(parent,value){
  p.className="info";
  p.textContent=value;
  parent.appendChild(p);
+}
+
+function showNotification(text){
+ const box=document.getElementById("notification");
+ const notificationText=document.getElementById("notificationText");
+
+ notificationText.textContent=text;
+ box.style.display="block";
+}
+
+function startRealtime(){
+
+ if(bookingChannel || !user)return;
+
+ bookingChannel=supabase
+  .channel("johar-kisan-booking-notifications")
+  .on(
+   "postgres_changes",
+   {
+    event:"*",
+    schema:"public",
+    table:"bookings"
+   },
+   payload=>{
+
+    const b=payload.new||payload.old;
+
+    if(!b || !user)return;
+
+    if(
+     b.customer_id!==user.id &&
+     b.owner_id!==user.id
+    )return;
+
+    if(payload.eventType==="INSERT"){
+
+     if(b.owner_id===user.id){
+      showNotification("🔔 आपकी मशीन के लिए नई Booking आई है।");
+     }else{
+      showNotification("✅ आपकी Booking सफलतापूर्वक भेज दी गई है।");
+     }
+
+    }else if(payload.eventType==="UPDATE"){
+
+     const status=b.status||"";
+
+     showNotification(
+      "🔔 Booking का नया Status: "+
+      (statusHindi[status]||status)
+     );
+    }
+
+    loadBookings(currentView);
+   }
+  )
+  .subscribe(status=>{
+
+   if(status==="CHANNEL_ERROR"){
+    message.textContent=
+     "Realtime Notification कनेक्ट नहीं हुआ। Refresh करके देखें।";
+   }
+
+   if(status==="SUBSCRIBED"){
+    message.textContent="🔔 Live Booking Notifications चालू हैं।";
+   }
+  });
 }
 
 function addCallButton(parent,label,phone){
@@ -193,6 +270,9 @@ async function loadBookings(view="all"){
   }
 
   user=authData.user;
+
+  // Login के बाद Live Notifications शुरू करें
+  startRealtime();
 
   let query=supabase.from("bookings").select(`
    id,machine_id,machine_name_snapshot,
@@ -336,6 +416,7 @@ async function loadBookings(view="all"){
 }
 
 loadBookings();
+
 </script>
 </body>
 </html>
