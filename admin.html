@@ -1,9 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="hi">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JOHAR KISAN - Admin</title>
+
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial;background:#edf5ed;color:#17351e}
@@ -21,19 +23,53 @@ textarea{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;min-hei
 .stat strong{display:block;font-size:25px;color:#176b35;margin-top:6px}
 .small{font-size:13px;color:#647664}
 .status{font-weight:bold}
+.admin-link{
+ width:100%;
+ padding:14px;
+ margin:7px 0;
+ font-size:15px;
+ text-align:left;
+}
 </style>
 </head>
+
 <body>
+
 <header>
 <h2>🌾 JOHAR KISAN</h2>
 <p>Admin Dashboard</p>
 </header>
 
 <main>
+
+<div class="card">
+<h3>🛡️ Admin Controls</h3>
+
+<button class="admin-link"
+onclick="location.href='./dashboard.html'">
+🏠 Main Dashboard
+</button>
+
+<button class="admin-link"
+onclick="location.href='./admin-categories.html'">
+📂 Categories Management
+</button>
+
+<button class="admin-link"
+onclick="location.href='./admin-users.html'">
+👥 User Management
+</button>
+
+<button class="admin-link"
+onclick="location.href='./admin-support.html'">
+🎫 Admin Support
+</button>
+</div>
+
 <div class="card">
 <h3>🛡️ Machine Approval Panel</h3>
-<button onclick="location.href='./dashboard.html'">Dashboard</button>
-<button id="refresh">Refresh</button>
+
+<button id="refresh">↻ Refresh</button>
 
 <div class="stats">
  <div class="stat">कुल मशीनें<strong id="totalCount">0</strong></div>
@@ -51,6 +87,7 @@ textarea{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;min-hei
 <h3>📋 Machine Listings</h3>
 <div id="machineList"></div>
 </div>
+
 </main>
 
 <script type="module">
@@ -206,5 +243,6 @@ async function updateStatus(machine,status,reason){
 document.getElementById("refresh").onclick=loadMachines;
 loadMachines();
 </script>
+
 </body>
 </html>
