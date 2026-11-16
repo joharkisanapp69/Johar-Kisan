@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOHAR KISAN - Admin Reviews</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#edf5ed;color:#17351e}
+header{background:#176b35;color:white;padding:18px}
+main{max-width:850px;margin:auto;padding:14px}
+.card{background:white;padding:16px;border-radius:12px;margin:13px 0;box-shadow:0 2px 8px #0001}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.stat{background:#f0f7ef;padding:15px;border-radius:10px;text-align:center}
+.number{font-size:25px;font-weight:bold;color:#176b35}
+.review{border:1px solid #dce8dc;border-radius:10px;padding:13px;margin:12px 0;overflow-wrap:anywhere}
+.stars{color:#d58a00;font-size:20px}
+.info{font-size:13px;color:#526552;line-height:1.6}
+button{padding:10px 14px;border:0;border-radius:8px;background:#176b35;color:white;cursor:pointer;margin:4px}
+.hide{background:#a33b30}
+.show{background:#287a42}
+input,select{width:100%;padding:11px;margin:7px 0;border:1px solid #ccd8cc;border-radius:8px}
+.hidden-label{color:#a33b30;font-weight:bold;font-size:13px}
+</style>
+</head>
+<body>
+
+<header>
+<h2>🌾 JOHAR KISAN</h2>
+<p>🛡️ Admin Reviews Management</p>
+</header>
+
+<main>
+<div class="card">
+<button onclick="location.href='./admin.html'">← Admin Dashboard</button>
+<h2>⭐ Reviews Management</h2>
+<p id="message">लोड हो रहा है...</p>
+</div>
+
+<div class="card">
+<h3>📊 Review Summary</h3>
+<div class="stats">
+<div class="stat">
+<div class="number" id="total">0</div>
+<div class="info">Total Reviews</div>
+</div>
+<div class="stat">
+<div class="number" id="average">0.0</div>
+<div class="info">Average Rating</div>
+</div>
+<div class="stat">
+<div class="number" id="visible">0</div>
+<div class="info">Visible Reviews</div>
+</div>
+<div class="stat">
+<div class="number" id="hidden">0</div>
+<div class="info">Hidden Reviews</div>
+</div>
+</div>
+</div>
+
+<div class="card">
+<h3>🔍 Search और Filter</h3>
+<input id="search" placeholder="Review ID या Review Text खोजें">
+<select id="filter">
+<option value="all">सभी Reviews</option>
+<option value="visible">Visible Reviews</option>
+<option value="hidden">Hidden Reviews</option>
+</select>
+</div>
+
+<div class="card">
+<h3>📝 सभी Customer Reviews</h3>
+<div id="reviewList">लोड हो रहा है...</div>
+</div>
+</main>
+
+<script type="module">
+import {supabase} from "./supabase-config.js";
+
+const message=document.getElementById("message");
+const reviewList=document.getElementById("reviewList");
+const searchInput=document.getElementById("search");
+const filterSelect=document.getElementById("filter");
+
+let allReviews=[];
+
+function stars(n){
+ n=Math.max(0,Math.min(5,Number(n)||0));
+ return "★".repeat(n)+"☆".repeat(5-n);
+}
+
+function text(parent,value,className="info"){
+ const p=document.createElement("p");
+ p.className=className;
+ p.textContent=value;
+ parent.appendChild(p);
+}
+
+function date(value){
+ const d=new Date(value);
+ return Number.isNaN(d.getTime())?"-":d.toLocaleDateString("hi-IN");
+}
+
+function summary(reviews){
+ const total=reviews.length;
+ const visible=reviews.filter(r=>!r.is_hidden);
+ const hidden=reviews.filter(r=>r.is_hidden);
+
+ const avg=total
+  ?reviews.reduce((s,r)=>s+Number(r.rating),0)/total
+  :0;
+
+ document.getElementById("total").textContent=total;
+ document.getElementById("average").textContent=avg.toFixed(1);
+ document.getElementById("visible").textContent=visible.length;
+ document.getElementById("hidden").textContent=hidden.length;
+}
+
+function render(){
+ reviewList.innerHTML="";
+
+ const q=searchInput.value.trim().toLowerCase();
+ const filter=filterSelect.value;
+
+ const filtered=allReviews.filter(r=>{
+  const isHidden=Boolean(r.is_hidden);
+
+  const matchesFilter=
+   filter==="all" ||
+   (filter==="visible"&&!isHidden) ||
+   (filter==="hidden"&&isHidden);
+
+  const searchable=[
+   r.id,r.review_text,r.booking_id,r.machine_id,r.owner_id,r.customer_id
+  ].join(" ").toLowerCase();
+
+  return matchesFilter&&(!q||searchable.includes(q));
+ });
+
+ if(filtered.length===0){
+  reviewList.textContent="कोई Review नहीं मिला।";
+  return;
+ }
+
+ filtered.forEach(r=>{
+  const card=document.createElement("div");
+  card.className="review";
+
+  const heading=document.createElement("strong");
+  heading.textContent="Review";
+  card.appendChild(heading);
+
+  if(r.is_hidden){
+   text(card,"यह Review Hidden है","hidden-label");
+  }
+
+  const rating=document.createElement("div");
+  rating.className="stars";
+  rating.textContent=stars(r.rating)+" "+r.rating+"/5";
+  card.appendChild(rating);
+
+  text(card,"Review ID: "+r.id);
+  text(card,"Booking ID: "+r.booking_id);
+  text(card,"Machine ID: "+(r.machine_id||"-"));
+  text(card,"Owner ID: "+r.owner_id);
+  text(card,"Customer ID: "+r.customer_id);
+
+  text(card,"Customer Review: "+(r.review_text||"केवल Rating दी गई है।"));
+  text(card,"तारीख: "+date(r.created_at));
+
+  if(r.admin_note){
+   text(card,"Admin Note: "+r.admin_note);
+  }
+
+  const note=document.createElement("input");
+  note.placeholder="Hide करने का कारण (वैकल्पिक)";
+  note.maxLength=500;
+  card.appendChild(note);
+
+  const button=document.createElement("button");
+  button.className=r.is_hidden?"show":"hide";
+  button.textContent=r.is_hidden?"Unhide Review":"Hide Review";
+
+  button.addEventListener("click",async()=>{
+   button.disabled=true;
+
+   try{
+    const {data,error}=await supabase.rpc("admin_set_review_hidden",{
+     p_review_id:r.id,
+     p_hidden:!r.is_hidden,
+     p_note:note.value.trim()||null
+    });
+
+    if(error)throw error;
+    if(!data)throw new Error("Review अपडेट नहीं हुआ।");
+
+    await loadReviews();
+   }catch(error){
+    alert("Error: "+error.message);
+    button.disabled=false;
+   }
+  });
+
+  card.appendChild(button);
+  reviewList.appendChild(card);
+ });
+}
+
+async function loadReviews(){
+ message.textContent="Reviews लोड हो रहे हैं...";
+
+ try{
+  const {data:authData,error:authError}=await supabase.auth.getUser();
+  if(authError)throw authError;
+
+  if(!authData.user){
+   location.href="./auth.html";
+   return;
+  }
+
+  const {data:profile,error:profileError}=await supabase
+   .from("profiles")
+   .select("is_admin")
+   .eq("id",authData.user.id)
+   .maybeSingle();
+
+  if(profileError)throw profileError;
+
+  if(!profile?.is_admin){
+   message.textContent="आपको Admin access नहीं है।";
+   reviewList.innerHTML="";
+   return;
+  }
+
+  const {data,error}=await supabase
+   .from("reviews")
+   .select("id,booking_id,machine_id,customer_id,owner_id,rating,review_text,created_at,is_hidden,admin_note")
+   .order("created_at",{ascending:false});
+
+  if(error)throw error;
+
+  allReviews=data||[];
+  summary(allReviews);
+  render();
+
+  message.textContent="कुल Reviews: "+allReviews.length;
+
+ }catch(error){
+  message.textContent="त्रुटि: "+error.message;
+ }
+}
+
+searchInput.addEventListener("input",render);
+filterSelect.addEventListener("change",render);
+
+loadReviews();
+</script>
+</body>
+</html>
