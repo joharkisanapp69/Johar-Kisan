@@ -7,26 +7,22 @@
 
 <style>
 *{box-sizing:border-box}
-
 body{
  margin:0;
  font-family:Arial,sans-serif;
  background:#edf5ed;
  color:#17351e;
 }
-
 header{
  background:#176b35;
  color:white;
  padding:18px;
 }
-
 main{
  max-width:700px;
  margin:auto;
  padding:14px;
 }
-
 .card{
  background:white;
  padding:15px;
@@ -34,24 +30,22 @@ main{
  margin:13px 0;
  box-shadow:0 2px 8px #0001;
 }
-
 .machine img{
  width:100%;
  max-height:220px;
  object-fit:cover;
  border-radius:9px;
 }
-
 .machine h3{color:#176b35}
-
 input,select{
  width:100%;
  padding:12px;
  margin:6px 0;
  border:1px solid #ccd8cc;
  border-radius:8px;
+ background:white;
+ font-size:15px;
 }
-
 button,.book-button{
  display:inline-block;
  padding:12px;
@@ -64,7 +58,8 @@ button,.book-button{
  cursor:pointer;
  text-align:center;
 }
-
+button:disabled{opacity:.6}
+.reset{background:#647664}
 .book-button{
  display:block;
  width:100%;
@@ -72,21 +67,23 @@ button,.book-button{
  font-weight:bold;
  font-size:16px;
 }
-
-.book-button:active{background:#104d27}
-
 .muted{
  color:#647664;
  font-size:13px;
 }
-
 .status{
  background:#eaf5e9;
  padding:9px;
  border-radius:8px;
  font-size:13px;
 }
-
+.filter-label{
+ display:block;
+ margin-top:9px;
+ font-size:13px;
+ font-weight:bold;
+ color:#315c38;
+}
 </style>
 </head>
 
@@ -103,23 +100,38 @@ button,.book-button{
 <h3>🔍 मशीन खोजें</h3>
 
 <input id="search"
-placeholder="मशीन या गाँव का नाम लिखें">
+placeholder="मशीन का नाम लिखें...">
 
+<label class="filter-label">श्रेणी चुनें</label>
 <select id="category">
 <option value="">सभी श्रेणियाँ</option>
-<option>Tractor</option>
-<option>Harvester</option>
-<option>Rotavator</option>
-<option>JCB</option>
-<option>Thresher</option>
-<option>Other</option>
 </select>
 
-<button id="searchBtn">खोजें</button>
+<label class="filter-label">राज्य चुनें</label>
+<select id="state">
+<option value="">सभी राज्य</option>
+</select>
 
-<button onclick="location.href='./dashboard.html'">
-Dashboard
-</button>
+<label class="filter-label">जिला चुनें</label>
+<select id="district">
+<option value="">सभी जिले</option>
+</select>
+
+<label class="filter-label">तहसील चुनें</label>
+<select id="tehsil">
+<option value="">सभी तहसील</option>
+</select>
+
+<label class="filter-label">गाँव / स्थानीय क्षेत्र चुनें</label>
+<select id="village">
+<option value="">सभी गाँव और क्षेत्र</option>
+</select>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+<button id="searchBtn">🔍 खोजें</button>
+<button id="resetBtn" class="reset">Reset Filters</button>
+<button onclick="location.href='./dashboard.html'">Dashboard</button>
+</div>
 
 <p id="message">मशीनें लोड हो रही हैं...</p>
 </div>
@@ -134,21 +146,106 @@ import {supabase} from "./supabase-config.js";
 const list=document.getElementById("machineList");
 const message=document.getElementById("message");
 
+const searchInput=document.getElementById("search");
+const categorySelect=document.getElementById("category");
+const stateSelect=document.getElementById("state");
+const districtSelect=document.getElementById("district");
+const tehsilSelect=document.getElementById("tehsil");
+const villageSelect=document.getElementById("village");
+
 let allMachines=[];
 
-function showMachines(items){
+function clean(value){
+ return String(value||"").trim();
+}
 
+function uniqueValues(values){
+ return [...new Set(
+  values.map(clean).filter(Boolean)
+ )].sort((a,b)=>a.localeCompare(b));
+}
+
+function fillSelect(select,values,defaultText,selectedValue=""){
+ select.innerHTML="";
+
+ const first=document.createElement("option");
+ first.value="";
+ first.textContent=defaultText;
+ select.appendChild(first);
+
+ uniqueValues(values).forEach(value=>{
+  const option=document.createElement("option");
+  option.value=value;
+  option.textContent=value;
+  select.appendChild(option);
+ });
+
+ if(uniqueValues(values).includes(selectedValue)){
+  select.value=selectedValue;
+ }
+}
+
+async function loadCategories(){
+ const {data,error}=await supabase
+  .from("categories")
+  .select("name")
+  .eq("is_active",true)
+  .order("name");
+
+ if(error){
+  console.error("Category loading error:",error.message);
+  fillSelect(
+   categorySelect,
+   allMachines.map(m=>m.category),
+   "सभी श्रेणियाँ"
+  );
+  return;
+ }
+
+ fillSelect(
+  categorySelect,
+  (data||[]).map(c=>c.name),
+  "सभी श्रेणियाँ"
+ );
+}
+
+function loadLocationFilters(){
+ fillSelect(
+  stateSelect,
+  allMachines.map(m=>m.state),
+  "सभी राज्य"
+ );
+
+ fillSelect(
+  districtSelect,
+  allMachines.map(m=>m.district),
+  "सभी जिले"
+ );
+
+ fillSelect(
+  tehsilSelect,
+  allMachines.map(m=>m.tehsil),
+  "सभी तहसील"
+ );
+
+ fillSelect(
+  villageSelect,
+  allMachines.flatMap(m=>[m.village,m.locality]),
+  "सभी गाँव और क्षेत्र"
+ );
+}
+
+function showMachines(items){
  list.innerHTML="";
 
  if(items.length===0){
-  message.textContent="कोई Approved मशीन नहीं मिली।";
+  message.textContent="आपकी खोज से कोई Approved मशीन नहीं मिली।";
   return;
  }
 
  message.textContent="मिली हुई मशीनें: "+items.length;
 
  items.forEach(m=>{
-
   const card=document.createElement("div");
   card.className="card machine";
 
@@ -157,12 +254,10 @@ function showMachines(items){
   card.appendChild(title);
 
   if(m.machine_photo_url){
-
    const img=document.createElement("img");
    img.src=m.machine_photo_url;
    img.alt="Machine photo";
    img.onerror=()=>img.style.display="none";
-
    card.appendChild(img);
   }
 
@@ -170,15 +265,17 @@ function showMachines(items){
    "श्रेणी: "+(m.category||"-"),
    "किराया: ₹"+(m.price??"-")+" / "+(m.price_unit||"-"),
    "गाँव: "+(m.village||"-"),
+   "स्थानीय क्षेत्र: "+(m.locality||"-"),
    "तहसील: "+(m.tehsil||"-"),
    "जिला: "+(m.district||"-"),
-   "राज्य: "+(m.state||"-")
+   "राज्य: "+(m.state||"-"),
+   "विवरण: "+(m.description||"-")
   ];
 
-  details.forEach(v=>{
+  details.forEach(value=>{
    const p=document.createElement("p");
    p.className="muted";
-   p.textContent=v;
+   p.textContent=value;
    card.appendChild(p);
   });
 
@@ -190,18 +287,13 @@ function showMachines(items){
   card.appendChild(status);
 
   if(availability==="available"){
-
    const book=document.createElement("a");
    book.className="book-button";
    book.textContent="📅 इस मशीन की बुकिंग करें";
-
    book.href="./book-machine.html?machine_id="+
     encodeURIComponent(m.id);
-
    card.appendChild(book);
-
   }else{
-
    const unavailable=document.createElement("p");
    unavailable.className="muted";
    unavailable.textContent="यह मशीन अभी बुकिंग के लिए उपलब्ध नहीं है।";
@@ -212,8 +304,42 @@ function showMachines(items){
  });
 }
 
-async function loadMachines(){
+function searchMachines(){
+ const q=searchInput.value.trim().toLowerCase();
+ const category=categorySelect.value;
+ const state=stateSelect.value;
+ const district=districtSelect.value;
+ const tehsil=tehsilSelect.value;
+ const village=villageSelect.value;
 
+ const filtered=allMachines.filter(m=>{
+  const searchable=[
+   m.name,m.category,m.village,m.locality,
+   m.tehsil,m.district,m.state,m.description
+  ].map(clean).join(" ").toLowerCase();
+
+  return (!q||searchable.includes(q)) &&
+   (!category||m.category===category) &&
+   (!state||m.state===state) &&
+   (!district||m.district===district) &&
+   (!tehsil||m.tehsil===tehsil) &&
+   (!village||m.village===village||m.locality===village);
+ });
+
+ showMachines(filtered);
+}
+
+function resetFilters(){
+ searchInput.value="";
+ categorySelect.value="";
+ stateSelect.value="";
+ districtSelect.value="";
+ tehsilSelect.value="";
+ villageSelect.value="";
+ showMachines(allMachines);
+}
+
+async function loadMachines(){
  message.textContent="मशीनें लोड हो रही हैं...";
  list.innerHTML="";
 
@@ -230,41 +356,26 @@ async function loadMachines(){
  }
 
  allMachines=data||[];
+
+ await loadCategories();
+ loadLocationFilters();
  showMachines(allMachines);
-}
-
-function searchMachines(){
-
- const q=document.getElementById("search")
-  .value.trim().toLowerCase();
-
- const category=document.getElementById("category").value;
-
- const filtered=allMachines.filter(m=>{
-
-  const text=[
-   m.name,m.category,m.village,m.tehsil,
-   m.district,m.state,m.locality
-  ].join(" ").toLowerCase();
-
-  return (!q||text.includes(q))&&
-   (!category||m.category===category);
- });
-
- showMachines(filtered);
 }
 
 document.getElementById("searchBtn")
  .addEventListener("click",searchMachines);
 
-document.getElementById("search")
- .addEventListener("input",searchMachines);
+document.getElementById("resetBtn")
+ .addEventListener("click",resetFilters);
 
-document.getElementById("category")
- .addEventListener("change",searchMachines);
+searchInput.addEventListener("input",searchMachines);
+categorySelect.addEventListener("change",searchMachines);
+stateSelect.addEventListener("change",searchMachines);
+districtSelect.addEventListener("change",searchMachines);
+tehsilSelect.addEventListener("change",searchMachines);
+villageSelect.addEventListener("change",searchMachines);
 
 loadMachines();
-
 </script>
 
 </body>
