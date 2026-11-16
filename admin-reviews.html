@@ -17,10 +17,12 @@ main{max-width:850px;margin:auto;padding:14px}
 .stars{color:#d58a00;font-size:20px}
 .info{font-size:13px;color:#526552;line-height:1.6}
 button{padding:10px 14px;border:0;border-radius:8px;background:#176b35;color:white;cursor:pointer;margin:4px}
+button:disabled{opacity:.6;cursor:not-allowed}
 .hide{background:#a33b30}
 .show{background:#287a42}
 input,select{width:100%;padding:11px;margin:7px 0;border:1px solid #ccd8cc;border-radius:8px}
 .hidden-label{color:#a33b30;font-weight:bold;font-size:13px}
+.note{background:#fff8e6;padding:10px;border-radius:8px}
 </style>
 </head>
 <body>
@@ -33,6 +35,7 @@ input,select{width:100%;padding:11px;margin:7px 0;border:1px solid #ccd8cc;borde
 <main>
 <div class="card">
 <button onclick="location.href='./admin.html'">← Admin Dashboard</button>
+<button id="refreshBtn">↻ Refresh</button>
 <h2>⭐ Reviews Management</h2>
 <p id="message">लोड हो रहा है...</p>
 </div>
@@ -61,11 +64,21 @@ input,select{width:100%;padding:11px;margin:7px 0;border:1px solid #ccd8cc;borde
 
 <div class="card">
 <h3>🔍 Search और Filter</h3>
-<input id="search" placeholder="Review ID या Review Text खोजें">
+<input id="search" placeholder="Review ID, Booking ID या Review Text खोजें">
+
 <select id="filter">
 <option value="all">सभी Reviews</option>
 <option value="visible">Visible Reviews</option>
 <option value="hidden">Hidden Reviews</option>
+</select>
+
+<select id="starFilter">
+<option value="all">सभी Star Ratings</option>
+<option value="5">⭐⭐⭐⭐⭐ 5 Star</option>
+<option value="4">⭐⭐⭐⭐ 4 Star</option>
+<option value="3">⭐⭐⭐ 3 Star</option>
+<option value="2">⭐⭐ 2 Star</option>
+<option value="1">⭐ 1 Star</option>
 </select>
 </div>
 
@@ -82,8 +95,11 @@ const message=document.getElementById("message");
 const reviewList=document.getElementById("reviewList");
 const searchInput=document.getElementById("search");
 const filterSelect=document.getElementById("filter");
+const starFilter=document.getElementById("starFilter");
+const refreshBtn=document.getElementById("refreshBtn");
 
 let allReviews=[];
+let loading=false;
 
 function stars(n){
  n=Math.max(0,Math.min(5,Number(n)||0));
@@ -122,6 +138,7 @@ function render(){
 
  const q=searchInput.value.trim().toLowerCase();
  const filter=filterSelect.value;
+ const selectedStar=starFilter.value;
 
  const filtered=allReviews.filter(r=>{
   const isHidden=Boolean(r.is_hidden);
@@ -131,11 +148,16 @@ function render(){
    (filter==="visible"&&!isHidden) ||
    (filter==="hidden"&&isHidden);
 
+  const matchesStar=
+   selectedStar==="all" ||
+   Number(r.rating)===Number(selectedStar);
+
   const searchable=[
-   r.id,r.review_text,r.booking_id,r.machine_id,r.owner_id,r.customer_id
+   r.id,r.review_text,r.booking_id,
+   r.machine_id,r.owner_id,r.customer_id
   ].join(" ").toLowerCase();
 
-  return matchesFilter&&(!q||searchable.includes(q));
+  return matchesFilter&&matchesStar&&(!q||searchable.includes(q));
  });
 
  if(filtered.length===0){
@@ -148,11 +170,11 @@ function render(){
   card.className="review";
 
   const heading=document.createElement("strong");
-  heading.textContent="Review";
+  heading.textContent="⭐ Customer Review";
   card.appendChild(heading);
 
   if(r.is_hidden){
-   text(card,"यह Review Hidden है","hidden-label");
+   text(card,"⚠️ यह Review Hidden है","hidden-label");
   }
 
   const rating=document.createElement("div");
@@ -165,7 +187,6 @@ function render(){
   text(card,"Machine ID: "+(r.machine_id||"-"));
   text(card,"Owner ID: "+r.owner_id);
   text(card,"Customer ID: "+r.customer_id);
-
   text(card,"Customer Review: "+(r.review_text||"केवल Rating दी गई है।"));
   text(card,"तारीख: "+date(r.created_at));
 
@@ -174,7 +195,10 @@ function render(){
   }
 
   const note=document.createElement("input");
-  note.placeholder="Hide करने का कारण (वैकल्पिक)";
+  note.className="note";
+  note.placeholder=r.is_hidden
+   ?"Unhide करते समय नया कारण जरूरी नहीं"
+   :"Hide करने का कारण लिखें (अनिवार्य)";
   note.maxLength=500;
   card.appendChild(note);
 
@@ -183,13 +207,22 @@ function render(){
   button.textContent=r.is_hidden?"Unhide Review":"Hide Review";
 
   button.addEventListener("click",async()=>{
+   if(!r.is_hidden&&!note.value.trim()){
+    alert("कृपया Review Hide करने का कारण लिखें।");
+    note.focus();
+    return;
+   }
+
+   const action=r.is_hidden?"Unhide":"Hide";
+   if(!confirm("क्या आप यह Review "+action+" करना चाहते हैं?"))return;
+
    button.disabled=true;
 
    try{
     const {data,error}=await supabase.rpc("admin_set_review_hidden",{
      p_review_id:r.id,
      p_hidden:!r.is_hidden,
-     p_note:note.value.trim()||null
+     p_note:r.is_hidden?null:note.value.trim()
     });
 
     if(error)throw error;
@@ -208,6 +241,9 @@ function render(){
 }
 
 async function loadReviews(){
+ if(loading)return;
+ loading=true;
+ refreshBtn.disabled=true;
  message.textContent="Reviews लोड हो रहे हैं...";
 
  try{
@@ -248,11 +284,16 @@ async function loadReviews(){
 
  }catch(error){
   message.textContent="त्रुटि: "+error.message;
+ }finally{
+  loading=false;
+  refreshBtn.disabled=false;
  }
 }
 
 searchInput.addEventListener("input",render);
 filterSelect.addEventListener("change",render);
+starFilter.addEventListener("change",render);
+refreshBtn.addEventListener("click",loadReviews);
 
 loadReviews();
 </script>
