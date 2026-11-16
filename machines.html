@@ -4,28 +4,107 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JOHAR KISAN - Machines</title>
+
 <style>
 *{box-sizing:border-box}
-body{margin:0;font-family:Arial;background:#edf5ed;color:#17351e}
-header{background:#176b35;color:white;padding:18px}
-main{max-width:700px;margin:auto;padding:14px}
-.card{background:white;padding:15px;border-radius:12px;margin:13px 0}
-.machine img{width:100%;max-height:220px;object-fit:cover;border-radius:9px}
+
+body{
+ margin:0;
+ font-family:Arial,sans-serif;
+ background:#edf5ed;
+ color:#17351e;
+}
+
+header{
+ background:#176b35;
+ color:white;
+ padding:18px;
+}
+
+main{
+ max-width:700px;
+ margin:auto;
+ padding:14px;
+}
+
+.card{
+ background:white;
+ padding:15px;
+ border-radius:12px;
+ margin:13px 0;
+ box-shadow:0 2px 8px #0001;
+}
+
+.machine img{
+ width:100%;
+ max-height:220px;
+ object-fit:cover;
+ border-radius:9px;
+}
+
 .machine h3{color:#176b35}
-input,select{width:100%;padding:12px;margin:6px 0;border:1px solid #ccd8cc;border-radius:8px}
-button{padding:11px;border:0;border-radius:8px;background:#176b35;color:white}
-.muted{color:#647664;font-size:13px}
+
+input,select{
+ width:100%;
+ padding:12px;
+ margin:6px 0;
+ border:1px solid #ccd8cc;
+ border-radius:8px;
+}
+
+button,.book-button{
+ display:inline-block;
+ padding:12px;
+ border:0;
+ border-radius:8px;
+ background:#176b35;
+ color:white;
+ font-size:14px;
+ text-decoration:none;
+ cursor:pointer;
+ text-align:center;
+}
+
+.book-button{
+ display:block;
+ width:100%;
+ margin-top:14px;
+ font-weight:bold;
+ font-size:16px;
+}
+
+.book-button:active{background:#104d27}
+
+.muted{
+ color:#647664;
+ font-size:13px;
+}
+
+.status{
+ background:#eaf5e9;
+ padding:9px;
+ border-radius:8px;
+ font-size:13px;
+}
+
 </style>
 </head>
+
 <body>
+
 <header>
 <h2>🌾 JOHAR KISAN</h2>
 <p>किसानों के लिए मशीनें</p>
 </header>
+
 <main>
+
 <div class="card">
 <h3>🔍 मशीन खोजें</h3>
-<input id="search" placeholder="मशीन या गाँव का नाम लिखें">
+
+<input id="search"
+placeholder="मशीन या गाँव का नाम लिखें">
+
 <select id="category">
 <option value="">सभी श्रेणियाँ</option>
 <option>Tractor</option>
@@ -35,11 +114,18 @@ button{padding:11px;border:0;border-radius:8px;background:#176b35;color:white}
 <option>Thresher</option>
 <option>Other</option>
 </select>
+
 <button id="searchBtn">खोजें</button>
-<button onclick="location.href='./dashboard.html'">Dashboard</button>
+
+<button onclick="location.href='./dashboard.html'">
+Dashboard
+</button>
+
 <p id="message">मशीनें लोड हो रही हैं...</p>
 </div>
+
 <div id="machineList"></div>
+
 </main>
 
 <script type="module">
@@ -51,6 +137,7 @@ const message=document.getElementById("message");
 let allMachines=[];
 
 function showMachines(items){
+
  list.innerHTML="";
 
  if(items.length===0){
@@ -61,6 +148,7 @@ function showMachines(items){
  message.textContent="मिली हुई मशीनें: "+items.length;
 
  items.forEach(m=>{
+
   const card=document.createElement("div");
   card.className="card machine";
 
@@ -69,10 +157,12 @@ function showMachines(items){
   card.appendChild(title);
 
   if(m.machine_photo_url){
+
    const img=document.createElement("img");
    img.src=m.machine_photo_url;
    img.alt="Machine photo";
    img.onerror=()=>img.style.display="none";
+
    card.appendChild(img);
   }
 
@@ -82,8 +172,7 @@ function showMachines(items){
    "गाँव: "+(m.village||"-"),
    "तहसील: "+(m.tehsil||"-"),
    "जिला: "+(m.district||"-"),
-   "राज्य: "+(m.state||"-"),
-   "उपलब्धता: "+(m.availability_status||"available")
+   "राज्य: "+(m.state||"-")
   ];
 
   details.forEach(v=>{
@@ -93,11 +182,38 @@ function showMachines(items){
    card.appendChild(p);
   });
 
+  const availability=m.availability_status||"available";
+
+  const status=document.createElement("p");
+  status.className="status";
+  status.textContent="उपलब्धता: "+availability;
+  card.appendChild(status);
+
+  if(availability==="available"){
+
+   const book=document.createElement("a");
+   book.className="book-button";
+   book.textContent="📅 इस मशीन की बुकिंग करें";
+
+   book.href="./book-machine.html?machine_id="+
+    encodeURIComponent(m.id);
+
+   card.appendChild(book);
+
+  }else{
+
+   const unavailable=document.createElement("p");
+   unavailable.className="muted";
+   unavailable.textContent="यह मशीन अभी बुकिंग के लिए उपलब्ध नहीं है।";
+   card.appendChild(unavailable);
+  }
+
   list.appendChild(card);
  });
 }
 
 async function loadMachines(){
+
  message.textContent="मशीनें लोड हो रही हैं...";
  list.innerHTML="";
 
@@ -118,10 +234,14 @@ async function loadMachines(){
 }
 
 function searchMachines(){
- const q=document.getElementById("search").value.trim().toLowerCase();
+
+ const q=document.getElementById("search")
+  .value.trim().toLowerCase();
+
  const category=document.getElementById("category").value;
 
  const filtered=allMachines.filter(m=>{
+
   const text=[
    m.name,m.category,m.village,m.tehsil,
    m.district,m.state,m.locality
@@ -144,6 +264,8 @@ document.getElementById("category")
  .addEventListener("change",searchMachines);
 
 loadMachines();
+
 </script>
+
 </body>
 </html>
