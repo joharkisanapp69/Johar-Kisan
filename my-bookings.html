@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JOHAR KISAN - My Bookings</title>
+
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial,sans-serif;background:#edf5ed;color:#17351e}
@@ -12,7 +13,7 @@ main{max-width:750px;margin:auto;padding:14px}
 .card{background:white;padding:16px;margin:13px 0;border-radius:13px;box-shadow:0 2px 8px #0001}
 .tabs{display:flex;gap:8px;overflow-x:auto;padding:5px 0 12px}
 button{padding:11px 14px;border:0;border-radius:8px;background:#176b35;color:white;cursor:pointer}
-button:disabled{opacity:.6}
+button:disabled{opacity:.6;cursor:not-allowed}
 .tabs button{white-space:nowrap}
 .tabs button.active{background:#0b4320;outline:2px solid #8dbd91}
 .booking{border:1px solid #dce8dc;border-radius:10px;padding:13px;margin:13px 0}
@@ -25,8 +26,14 @@ button:disabled{opacity:.6}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .call{display:inline-block;background:#176b35;color:white;padding:10px 13px;border-radius:8px;text-decoration:none;margin:5px 5px 5px 0}
 #message{overflow-wrap:anywhere;line-height:1.5}
+.review{background:#fff8e6;border:1px solid #ead99d;border-radius:10px;padding:13px;margin-top:13px}
+.review select,.review textarea{width:100%;padding:11px;margin:8px 0;border:1px solid #bdcdbd;border-radius:8px;font-size:15px}
+.review textarea{min-height:85px;resize:vertical}
+.review-result{background:#edf5ed;padding:12px;border-radius:8px;margin-top:10px}
+.stars{color:#d58a00;font-size:21px;letter-spacing:2px}
 </style>
 </head>
+
 <body>
 
 <header>
@@ -235,12 +242,138 @@ function showNotification(text){
   box.className="card";
   box.style.background="#e1f3df";
   box.style.border="1px solid #176b35";
-  document.querySelector("main .card").insertBefore(
-   box,message
-  );
+  document.querySelector("main .card").insertBefore(box,message);
  }
 
  box.textContent=text;
+}
+
+// Review पहले से दिया है या नहीं, जाँचें
+async function loadReview(bookingId){
+ const {data,error}=await supabase
+  .from("reviews")
+  .select("rating,review_text,created_at")
+  .eq("booking_id",bookingId)
+  .maybeSingle();
+
+ if(error)throw error;
+ return data;
+}
+
+// Review दिखाएँ या नया Review देने का विकल्प दें
+async function addReviewSection(card,b){
+ if(b.status!=="completed"||b.customer_id!==user.id)return;
+
+ const section=document.createElement("div");
+ section.className="review";
+
+ const heading=document.createElement("h3");
+ heading.textContent="⭐ Rating & Review";
+ section.appendChild(heading);
+
+ card.appendChild(section);
+
+ try{
+  const existing=await loadReview(b.id);
+
+  if(existing){
+   const result=document.createElement("div");
+   result.className="review-result";
+
+   const stars=document.createElement("div");
+   stars.className="stars";
+   stars.textContent="★".repeat(existing.rating)+"☆".repeat(5-existing.rating);
+   result.appendChild(stars);
+
+   addText(result,"आपकी Rating: "+existing.rating+"/5");
+
+   if(existing.review_text){
+    addText(result,"आपका Review: "+existing.review_text);
+   }
+
+   addText(result,"Review जमा हो चुका है। धन्यवाद!");
+
+   section.appendChild(result);
+   return;
+  }
+
+  addText(section,"काम पूरा होने के बाद अपना अनुभव और Rating दें।");
+
+  const ratingLabel=document.createElement("label");
+  ratingLabel.textContent="अपनी Rating चुनें";
+  section.appendChild(ratingLabel);
+
+  const rating=document.createElement("select");
+
+  [
+   ["5","⭐⭐⭐⭐⭐ - बहुत अच्छा"],
+   ["4","⭐⭐⭐⭐ - अच्छा"],
+   ["3","⭐⭐⭐ - ठीक"],
+   ["2","⭐⭐ - सुधार की जरूरत"],
+   ["1","⭐ - खराब अनुभव"]
+  ].forEach(([value,label])=>{
+   const option=document.createElement("option");
+   option.value=value;
+   option.textContent=label;
+   rating.appendChild(option);
+  });
+
+  section.appendChild(rating);
+
+  const reviewLabel=document.createElement("label");
+  reviewLabel.textContent="अपना अनुभव लिखें (वैकल्पिक)";
+  section.appendChild(reviewLabel);
+
+  const reviewText=document.createElement("textarea");
+  reviewText.maxLength=1000;
+  reviewText.placeholder="मशीन या सेवा का अनुभव लिखें...";
+  section.appendChild(reviewText);
+
+  const submit=document.createElement("button");
+  submit.textContent="⭐ Review Submit करें";
+  section.appendChild(submit);
+
+  submit.onclick=async()=>{
+   if(!confirm("क्या आप यह Rating और Review जमा करना चाहते हैं?"))return;
+
+   submit.disabled=true;
+   submit.textContent="जमा हो रहा है...";
+
+   try{
+    const {error}=await supabase
+     .from("reviews")
+     .insert({
+      booking_id:b.id,
+      customer_id:user.id,
+      owner_id:b.owner_id,
+      machine_id:b.machine_id,
+      rating:Number(rating.value),
+      review_text:reviewText.value.trim()
+     });
+
+    if(error){
+     if(error.code==="23505"){
+      throw new Error("इस Booking पर Review पहले ही जमा हो चुका है।");
+     }
+     throw error;
+    }
+
+    section.innerHTML="";
+    const success=document.createElement("div");
+    success.className="review-result";
+    success.textContent="✅ आपका Review सफलतापूर्वक जमा हो गया। धन्यवाद!";
+    section.appendChild(success);
+
+   }catch(error){
+    alert("Review जमा नहीं हुआ: "+error.message);
+    submit.disabled=false;
+    submit.textContent="⭐ Review Submit करें";
+   }
+  };
+
+ }catch(error){
+  addText(section,"Review लोड नहीं हो पाया: "+error.message);
+ }
 }
 
 async function loadBookings(view="all"){
@@ -273,7 +406,6 @@ async function loadBookings(view="all"){
    owner_contact_consent
   `).order("created_at",{ascending:false});
 
-  // Booking प्रकार और Status Filter
   if(view==="customer"){
    query=query.eq("customer_id",user.id);
   }else if(view==="owner"){
@@ -387,6 +519,11 @@ async function loadBookings(view="all"){
     }
 
     card.appendChild(contact);
+   }
+
+   // केवल Customer की Completed Booking पर Review
+   if(b.status==="completed"&&b.customer_id===user.id){
+    await addReviewSection(card,b);
    }
 
    list.appendChild(card);
