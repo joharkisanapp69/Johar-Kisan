@@ -1,0 +1,139 @@
+
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOHAR KISAN - My Machines</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#edf5ed;color:#17351e}
+header{background:#176b35;color:white;padding:18px}
+main{max-width:700px;margin:auto;padding:14px}
+.card{background:white;padding:17px;margin:13px 0;border-radius:14px;box-shadow:0 2px 8px #0001}
+button{padding:12px;border:0;border-radius:9px;background:#176b35;color:white;font-size:14px;cursor:pointer}
+.top{display:flex;gap:8px;flex-wrap:wrap}
+.machine{border:1px solid #dce8dc;border-radius:12px;padding:13px;margin:13px 0}
+.machine img{width:100%;max-height:190px;object-fit:cover;border-radius:9px}
+.machine h3{color:#176b35;margin-bottom:7px}
+.muted{color:#647664;font-size:13px}
+#message{overflow-wrap:anywhere;color:#176b35}
+.danger{background:#a52d2d}
+</style>
+</head>
+<body>
+<header>
+<h2>🌾 JOHAR KISAN</h2>
+<p>मेरी मशीनें</p>
+</header>
+
+<main>
+<div class="card">
+<h2>🚜 My Machines</h2>
+<div class="top">
+<button onclick="location.href='./dashboard.html'">Dashboard</button>
+<button onclick="location.href='./add-machine.html'">➕ Add Machine</button>
+<button onclick="loadMachines()">Refresh</button>
+</div>
+<p id="message">मशीनें लोड हो रही हैं...</p>
+<div id="machineList"></div>
+</div>
+</main>
+
+<script type="module">
+import {supabase} from "./supabase-config.js";
+
+const message=document.getElementById("message");
+const list=document.getElementById("machineList");
+
+async function loadMachines(){
+ list.innerHTML="";
+ message.textContent="मशीनें लोड हो रही हैं...";
+
+ const {data:authData,error:authError}=await supabase.auth.getUser();
+ if(authError||!authData.user){
+  location.href="./auth.html";
+  return;
+ }
+
+ const {data,error}=await supabase
+  .from("machines")
+  .select("*")
+  .eq("owner_id",authData.user.id)
+  .order("created_at",{ascending:false});
+
+ if(error){
+  message.textContent="त्रुटि: "+error.message;
+  return;
+ }
+
+ if(!data||data.length===0){
+  message.textContent="अभी आपने कोई मशीन नहीं जोड़ी है।";
+  return;
+ }
+
+ message.textContent="आपकी कुल मशीनें: "+data.length;
+
+ data.forEach(machine=>{
+  const card=document.createElement("div");
+  card.className="machine";
+
+  const name=document.createElement("h3");
+  name.textContent="🚜 "+machine.name;
+  card.appendChild(name);
+
+  if(machine.machine_photo_url){
+   const img=document.createElement("img");
+   img.src=machine.machine_photo_url;
+   img.alt="Machine photo";
+   img.onerror=()=>img.style.display="none";
+   card.appendChild(img);
+  }
+
+  const details=[
+   "श्रेणी: "+(machine.category||"-"),
+   "किराया: ₹"+(machine.price??"-")+" / "+(machine.price_unit||"-"),
+   "गाँव: "+(machine.village||"-"),
+   "तहसील: "+(machine.tehsil||"-"),
+   "जिला: "+(machine.district||"-"),
+   "राज्य: "+(machine.state||"-"),
+   "स्थिति: "+(machine.availability_status||"available"),
+   "लिस्टिंग: "+(machine.is_active?"Active":"Admin की मंजूरी बाकी")
+  ];
+
+  details.forEach(value=>{
+   const p=document.createElement("p");
+   p.className="muted";
+   p.textContent=value;
+   card.appendChild(p);
+  });
+
+  const del=document.createElement("button");
+  del.className="danger";
+  del.textContent="Delete Machine";
+  del.onclick=async()=>{
+   if(!confirm("क्या आप इस मशीन को हटाना चाहते हैं?"))return;
+   del.disabled=true;
+   const {error:deleteError}=await supabase
+    .from("machines")
+    .delete()
+    .eq("id",machine.id)
+    .eq("owner_id",authData.user.id);
+
+   if(deleteError){
+    alert("Delete नहीं हुआ: "+deleteError.message);
+    del.disabled=false;
+   }else{
+    alert("मशीन हटा दी गई।");
+    loadMachines();
+   }
+  };
+  card.appendChild(del);
+  list.appendChild(card);
+ });
+}
+
+loadMachines();
+</script>
+</body>
+</html>
