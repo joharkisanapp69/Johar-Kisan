@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOHAR KISAN - Add Machine</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial;background:#edf5ed;color:#17351e}
+header{background:#176b35;color:white;padding:18px}
+main{max-width:600px;margin:auto;padding:15px}
+.card{background:white;padding:18px;border-radius:14px}
+h2{margin-top:0;color:#176b35}
+label{display:block;margin-top:13px;font-weight:bold}
+input,select,textarea{
+width:100%;padding:12px;margin-top:6px;
+border:1px solid #ccd8cc;border-radius:8px;font-size:15px
+}
+button{width:100%;padding:13px;margin-top:18px;
+border:0;border-radius:9px;background:#176b35;
+color:white;font-size:16px}
+#message{margin-top:14px;overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<header>
+<h2>🌾 JOHAR KISAN</h2>
+<p>अपनी मशीन जोड़ें</p>
+</header>
+<main>
+<div class="card">
+<h2>🚜 Add Machine</h2>
+
+<form id="machineForm">
+<label>मशीन का नाम</label>
+<input id="name" required placeholder="जैसे Tractor">
+
+<label>मशीन की श्रेणी</label>
+<select id="category" required>
+<option value="">श्रेणी चुनें</option>
+<option>Tractor</option>
+<option>Harvester</option>
+<option>Rotavator</option>
+<option>JCB</option>
+<option>Thresher</option>
+<option>Other</option>
+</select>
+
+<label>मशीन का विवरण</label>
+<textarea id="description" placeholder="मशीन की जानकारी"></textarea>
+
+<label>किराया</label>
+<input id="price" type="number" min="0" required placeholder="रुपये में">
+
+<label>किराये की इकाई</label>
+<select id="price_unit" required>
+<option value="">चुनें</option>
+<option value="hour">प्रति घंटा</option>
+<option value="day">प्रति दिन</option>
+<option value="acre">प्रति एकड़</option>
+</select>
+
+<label>राज्य</label>
+<input id="state" required placeholder="राज्य">
+
+<label>जिला</label>
+<input id="district" required placeholder="जिला">
+
+<label>तहसील</label>
+<input id="tehsil" placeholder="तहसील">
+
+<label>गाँव / शहर</label>
+<input id="village" required placeholder="गाँव या शहर">
+
+<label>मोहल्ला / क्षेत्र</label>
+<input id="locality" placeholder="क्षेत्र का नाम">
+
+<label>मशीन फोटो URL (वैकल्पिक)</label>
+<input id="photo" type="url" placeholder="फोटो का लिंक">
+
+<button type="submit" id="saveBtn">मशीन सेव करें</button>
+</form>
+<p id="message"></p>
+</div>
+</main>
+
+<script type="module">
+import {supabase} from "./supabase-config.js";
+
+const form=document.getElementById("machineForm");
+const message=document.getElementById("message");
+const saveBtn=document.getElementById("saveBtn");
+
+form.addEventListener("submit",async(e)=>{
+ e.preventDefault();
+ saveBtn.disabled=true;
+ message.textContent="मशीन सेव हो रही है...";
+
+ try{
+  const {data:auth,error:authError}=await supabase.auth.getUser();
+  if(authError) throw authError;
+  if(!data.user) throw new Error("पहले Login करें।");
+
+  const row={
+   owner_id:data.user.id,
+   name:document.getElementById("name").value.trim(),
+   category:document.getElementById("category").value,
+   description:document.getElementById("description").value.trim(),
+   price:Number(document.getElementById("price").value),
+   price_unit:document.getElementById("price_unit").value,
+   state:document.getElementById("state").value.trim(),
+   district:document.getElementById("district").value.trim(),
+   tehsil:document.getElementById("tehsil").value.trim(),
+   village:document.getElementById("village").value.trim(),
+   locality:document.getElementById("locality").value.trim(),
+   machine_photo_url:document.getElementById("photo").value.trim()||null,
+   is_available:true,
+   is_active:false,
+   availability_status:"available"
+  };
+
+  const {error}=await supabase.from("machines").insert(row);
+  if(error) throw error;
+
+  message.textContent="मशीन की जानकारी सेव हो गई। Admin की जाँच के बाद लिस्टिंग दिखाई जाएगी।";
+  form.reset();
+ }catch(error){
+  message.textContent="त्रुटि: "+error.message;
+ }finally{
+  saveBtn.disabled=false;
+ }
+});
+</script>
+</body>
+</html>
