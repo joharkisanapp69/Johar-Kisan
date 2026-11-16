@@ -1,0 +1,138 @@
+
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOHAR KISAN - Book Machine</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial;background:#edf5ed;color:#17351e}
+header{background:#176b35;color:white;padding:18px}
+main{max-width:600px;margin:auto;padding:15px}
+.card{background:white;padding:18px;border-radius:12px}
+label{display:block;margin-top:13px;font-weight:bold}
+input,select,textarea{width:100%;padding:12px;margin-top:6px;border:1px solid #ccd8cc;border-radius:8px;font-size:15px}
+button{width:100%;padding:13px;margin-top:18px;border:0;border-radius:8px;background:#176b35;color:white;font-size:16px}
+#message{overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<header>
+<h2>🌾 JOHAR KISAN</h2>
+<p>मशीन बुक करें</p>
+</header>
+<main>
+<div class="card">
+<h2>🚜 Machine Booking</h2>
+
+<form id="bookingForm">
+<label>मशीन चुनें</label>
+<select id="machine" required>
+<option value="">मशीन चुनें</option>
+</select>
+
+<label>काम की तारीख</label>
+<input type="date" id="service_date" required>
+
+<label>काम का स्थान</label>
+<input id="service_address" required placeholder="गाँव / खेत का पता">
+
+<label>किसान का संदेश</label>
+<textarea id="customer_note" placeholder="काम की जानकारी"></textarea>
+
+<button id="submitBtn" type="submit">बुकिंग भेजें</button>
+</form>
+
+<p id="message"></p>
+<button type="button" onclick="location.href='./machines.html'">मशीनों पर वापस जाएँ</button>
+</div>
+</main>
+
+<script type="module">
+import {supabase} from "./supabase-config.js";
+
+const machineSelect=document.getElementById("machine");
+const form=document.getElementById("bookingForm");
+const message=document.getElementById("message");
+const submitBtn=document.getElementById("submitBtn");
+
+let user=null;
+
+async function start(){
+ try{
+  const {data:authData,error:authError}=await supabase.auth.getUser();
+  if(authError) throw authError;
+  if(!authData.user){
+   location.href="./auth.html";
+   return;
+  }
+  user=authData.user;
+
+  const {data,error}=await supabase
+   .from("machines")
+   .select("id,name,owner_id,village,district")
+   .eq("is_active",true)
+   .eq("approval_status","approved")
+   .order("name");
+
+  if(error) throw error;
+
+  (data||[]).forEach(m=>{
+   const option=document.createElement("option");
+   option.value=m.id;
+   option.textContent=m.name+" - "+(m.village||"");
+   option.dataset.owner=m.owner_id;
+   machineSelect.appendChild(option);
+  });
+
+  if(!data||data.length===0){
+   message.textContent="अभी कोई Approved मशीन उपलब्ध नहीं है।";
+   submitBtn.disabled=true;
+  }
+ }catch(error){
+  message.textContent="त्रुटि: "+error.message;
+ }
+}
+
+form.addEventListener("submit",async(e)=>{
+ e.preventDefault();
+ submitBtn.disabled=true;
+ message.textContent="बुकिंग भेजी जा रही है...";
+
+ try{
+  if(!user) throw new Error("पहले Login करें।");
+
+  const selected=machineSelect.selectedOptions[0];
+  const machineId=machineSelect.value;
+  const ownerId=selected?.dataset.owner;
+
+  if(!machineId||!ownerId) throw new Error("मशीन चुनें।");
+  if(ownerId===user.id) throw new Error("आप अपनी मशीन खुद बुक नहीं कर सकते।");
+
+  const {error}=await supabase.from("bookings").insert({
+   machine_id:machineId,
+   customer_id:user.id,
+   owner_id:ownerId,
+   service_date:document.getElementById("service_date").value,
+   service_address:document.getElementById("service_address").value.trim(),
+   customer_note:document.getElementById("customer_note").value.trim(),
+   status:"pending"
+  });
+
+  if(error) throw error;
+
+  message.textContent="आपकी बुकिंग सफलतापूर्वक भेज दी गई है। Owner के जवाब का इंतजार करें।";
+  form.reset();
+
+ }catch(error){
+  message.textContent="त्रुटि: "+error.message;
+ }finally{
+  submitBtn.disabled=false;
+ }
+});
+
+start();
+</script>
+</body>
+</html>
