@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOHAR KISAN - Admin</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial;background:#edf5ed;color:#17351e}
+header{background:#176b35;color:white;padding:18px}
+main{max-width:700px;margin:auto;padding:14px}
+.card{background:white;padding:16px;border-radius:12px;margin:14px 0}
+button{padding:11px;border:0;border-radius:8px;background:#176b35;color:white;margin:5px 3px}
+.reject{background:#a52d2d}
+img{width:100%;max-height:220px;object-fit:cover;border-radius:9px}
+textarea{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px}
+#message{overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<header>
+<h2>🌾 JOHAR KISAN</h2>
+<p>Admin Dashboard</p>
+</header>
+<main>
+<div class="card">
+<h3>🛡️ Machine Approval Panel</h3>
+<button onclick="location.href='./dashboard.html'">Dashboard</button>
+<button id="refresh">Refresh</button>
+<p id="message">लोड हो रहा है...</p>
+</div>
+<div id="machineList"></div>
+</main>
+
+<script type="module">
+import {supabase} from "./supabase-config.js";
+
+const message=document.getElementById("message");
+const list=document.getElementById("machineList");
+
+async function loadMachines(){
+ list.innerHTML="";
+ message.textContent="मशीनें लोड हो रही हैं...";
+
+ try{
+  const {data:authData,error:authError}=await supabase.auth.getUser();
+  if(authError) throw authError;
+  if(!authData.user) throw new Error("पहले Login करें।");
+
+  const {data:profile,error:profileError}=await supabase
+   .from("profiles")
+   .select("is_admin")
+   .eq("id",authData.user.id)
+   .single();
+
+  if(profileError) throw profileError;
+  if(!profile.is_admin) throw new Error("आपको Admin अनुमति नहीं है।");
+
+  const {data,error}=await supabase
+   .from("machines")
+   .select("*")
+   .order("created_at",{ascending:false});
+
+  if(error) throw error;
+
+  const pending=data.filter(m=>m.approval_status==="pending");
+  message.textContent="कुल मशीनें: "+data.length+
+   " | Pending: "+pending.length;
+
+  if(data.length===0){
+   message.textContent="अभी कोई मशीन उपलब्ध नहीं है।";
+   return;
+  }
+
+  data.forEach(machine=>{
+   const card=document.createElement("div");
+   card.className="card";
+
+   const title=document.createElement("h3");
+   title.textContent="🚜 "+machine.name;
+   card.appendChild(title);
+
+   if(machine.machine_photo_url){
+    const img=document.createElement("img");
+    img.src=machine.machine_photo_url;
+    img.alt="Machine photo";
+    card.appendChild(img);
+   }
+
+   const details=[
+    "श्रेणी: "+(machine.category||"-"),
+    "किराया: ₹"+(machine.price??"-")+" / "+(machine.price_unit||"-"),
+    "Owner ID: "+machine.owner_id,
+    "गाँव: "+(machine.village||"-"),
+    "तहसील: "+(machine.tehsil||"-"),
+    "जिला: "+(machine.district||"-"),
+    "स्थिति: "+(machine.approval_status||"pending")
+   ];
+
+   details.forEach(v=>{
+    const p=document.createElement("p");
+    p.textContent=v;
+    card.appendChild(p);
+   });
+
+   if(machine.approval_status==="pending"){
+    const reason=document.createElement("textarea");
+    reason.placeholder="Reject करने का कारण (केवल Reject के लिए)";
+    card.appendChild(reason);
+
+    const approve=document.createElement("button");
+    approve.textContent="✓ Approve";
+    approve.onclick=()=>updateStatus(machine,"approved","");
+    card.appendChild(approve);
+
+    const reject=document.createElement("button");
+    reject.textContent="✕ Reject";
+    reject.className="reject";
+    reject.onclick=()=>{
+     if(!reason.value.trim()){
+      alert("Reject करने का कारण लिखें।");
+      return;
+     }
+     updateStatus(machine,"rejected",reason.value.trim());
+    };
+    card.appendChild(reject);
+   }
+
+   list.appendChild(card);
+  });
+
+ }catch(error){
+  message.textContent="त्रुटि: "+error.message;
+ }
+}
+
+async function updateStatus(machine,status,reason){
+ if(!confirm("क्या आप यह बदलाव करना चाहते हैं?"))return;
+
+ const {error}=await supabase
+  .from("machines")
+  .update({
+   approval_status:status,
+   rejection_reason:reason,
+   is_active:status==="approved"
+  })
+  .eq("id",machine.id);
+
+ if(error){
+  alert("बदलाव नहीं हुआ: "+error.message);
+ }else{
+  alert("मशीन की स्थिति अपडेट हो गई।");
+  loadMachines();
+ }
+}
+
+document.getElementById("refresh").onclick=loadMachines;
+loadMachines();
+</script>
+</body>
+</html>
