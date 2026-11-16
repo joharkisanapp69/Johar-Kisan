@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOHAR KISAN - Notifications</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial;background:#edf5ed;color:#17351e}
+header{background:#176b35;color:white;padding:18px}
+main{max-width:750px;margin:20px auto;padding:15px}
+.card{background:white;padding:15px;margin:12px 0;border-radius:12px;border:1px solid #d8e5d8}
+.unread{border-left:5px solid #176b35;background:#f5fff5}
+button{background:#176b35;color:white;border:0;padding:10px 15px;border-radius:7px;margin:4px}
+.small{color:#647564;font-size:13px}
+#status{padding:10px}
+</style>
+</head>
+<body>
+<header>
+<h2>🔔 JOHAR KISAN</h2>
+<p>मेरी Notifications</p>
+</header>
+<main>
+<h3>Notifications <span id="count"></span></h3>
+<button onclick="loadNotifications()">Refresh</button>
+<button onclick="location.href='./dashboard.html'">Dashboard</button>
+<div id="status">Loading...</div>
+<div id="list"></div>
+</main>
+
+<script type="module">
+import { supabase } from "./supabase-config.js";
+
+const statusBox=document.getElementById("status");
+const list=document.getElementById("list");
+const count=document.getElementById("count");
+
+let currentUser;
+
+async function loadNotifications(){
+  list.innerHTML="";
+  statusBox.textContent="Loading...";
+
+  const {data:{user},error:authError} =
+    await supabase.auth.getUser();
+
+  if(authError || !user){
+    location.href="./auth.html";
+    return;
+  }
+
+  currentUser=user;
+
+  const {data,error}=await supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id",currentUser.id)
+    .order("created_at",{ascending:false})
+    .limit(100);
+
+  if(error){
+    statusBox.textContent="Error: "+error.message;
+    return;
+  }
+
+  const unread=(data||[]).filter(n=>!n.is_read).length;
+  count.textContent="("+unread+" Unread)";
+  statusBox.textContent=data.length
+    ? "आपकी Notifications"
+    : "अभी कोई Notification नहीं है।";
+
+  data.forEach(n=>{
+    const card=document.createElement("div");
+    card.className="card "+(!n.is_read?"unread":"");
+
+    const title=document.createElement("h3");
+    title.textContent=n.title;
+
+    const message=document.createElement("p");
+    message.textContent=n.message;
+
+    const date=document.createElement("p");
+    date.className="small";
+    date.textContent=new Date(n.created_at).toLocaleString("hi-IN");
+
+    card.append(title,message,date);
+
+    if(!n.is_read){
+      const btn=document.createElement("button");
+      btn.textContent="Mark as Read";
+      btn.onclick=()=>markRead(n.id,btn);
+      card.append(btn);
+    }else{
+      const read=document.createElement("span");
+      read.className="small";
+      read.textContent="✓ पढ़ी गई";
+      card.append(read);
+    }
+
+    list.append(card);
+  });
+}
+
+async function markRead(id,button){
+  button.disabled=true;
+
+  const {error}=await supabase
+    .from("notifications")
+    .update({is_read:true})
+    .eq("id",id)
+    .eq("user_id",currentUser.id);
+
+  if(error){
+    alert(error.message);
+    button.disabled=false;
+    return;
+  }
+
+  loadNotifications();
+}
+
+loadNotifications();
+</script>
+</body>
+</html>
