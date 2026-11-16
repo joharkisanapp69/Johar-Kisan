@@ -12,7 +12,7 @@ main{max-width:600px;margin:auto;padding:15px}
 .card{background:white;padding:18px;border-radius:12px;box-shadow:0 2px 8px #0001}
 label{display:block;margin-top:13px;font-weight:bold}
 input,select,textarea{width:100%;padding:12px;margin-top:6px;border:1px solid #ccd8cc;border-radius:8px;font-size:15px}
-button{width:100%;padding:13px;margin-top:18px;border:0;border-radius:8px;background:#176b35;color:white;font-size:16px}
+button{width:100%;padding:13px;margin-top:14px;border:0;border-radius:8px;background:#176b35;color:white;font-size:16px}
 button:disabled{opacity:.6}
 #message{overflow-wrap:anywhere;line-height:1.5}
 .preview{border:1px solid #dce8dc;border-radius:10px;padding:12px;margin-top:15px;display:none}
@@ -21,15 +21,18 @@ button:disabled{opacity:.6}
 </style>
 </head>
 <body>
+
 <header>
 <h2>🌾 JOHAR KISAN</h2>
 <p>मशीन बुक करें</p>
 </header>
+
 <main>
 <div class="card">
 <h2>🚜 Machine Booking</h2>
 
 <form id="bookingForm">
+
 <label>मशीन चुनें</label>
 <select id="machine" required>
 <option value="">मशीन चुनें</option>
@@ -51,12 +54,18 @@ button:disabled{opacity:.6}
 <label>किसान का संदेश</label>
 <textarea id="customer_note" maxlength="1000" placeholder="काम की जानकारी"></textarea>
 
-<button id="submitBtn" type="submit">बुकिंग भेजें</button>
+<button id="submitBtn" type="submit">📅 बुकिंग भेजें</button>
 </form>
 
 <p id="message"></p>
-<button type="button" onclick="location.href='./machines.html'">मशीनों पर वापस जाएँ</button>
-<button type="button" onclick="location.href='./my-bookings.html'">मेरी Booking देखें</button>
+
+<button type="button" onclick="location.href='./machines.html'">
+मशीनों पर वापस जाएँ
+</button>
+
+<button type="button" onclick="location.href='./my-bookings.html'">
+मेरी Booking देखें
+</button>
 </div>
 </main>
 
@@ -69,10 +78,14 @@ const message=document.getElementById("message");
 const submitBtn=document.getElementById("submitBtn");
 const preview=document.getElementById("machinePreview");
 
+const params=new URLSearchParams(location.search);
+const requestedMachineId=params.get("machine_id");
+
 let user=null;
 let machines=[];
 
 function showMachine(){
+
  const id=machineSelect.value;
  const m=machines.find(item=>String(item.id)===id);
 
@@ -82,13 +95,17 @@ function showMachine(){
  }
 
  preview.style.display="block";
+
  document.getElementById("machineName").textContent="🚜 "+m.name;
+
  document.getElementById("machinePrice").textContent=
   "किराया: ₹"+(m.price??"-")+" / "+(m.price_unit||"-");
+
  document.getElementById("machineLocation").textContent=
   "स्थान: "+[m.village,m.district,m.state].filter(Boolean).join(", ");
 
  const photo=document.getElementById("machinePhoto");
+
  if(m.machine_photo_url){
   photo.src=m.machine_photo_url;
   photo.style.display="block";
@@ -102,19 +119,26 @@ function showMachine(){
 machineSelect.addEventListener("change",showMachine);
 
 async function start(){
+
+ submitBtn.disabled=true;
+ message.textContent="मशीनें लोड हो रही हैं...";
+
  try{
+
   const {data:authData,error:authError}=await supabase.auth.getUser();
+
   if(authError)throw authError;
 
   if(!authData.user){
    location.href="./auth.html";
    return;
   }
+
   user=authData.user;
 
   const {data,error}=await supabase
    .from("machines")
-   .select("id,name,owner_id,village,district,state,price,price_unit,machine_photo_url")
+   .select("id,name,owner_id,village,district,state,price,price_unit,machine_photo_url,availability_status")
    .eq("is_active",true)
    .eq("approval_status","approved")
    .order("name");
@@ -124,28 +148,54 @@ async function start(){
   machines=data||[];
 
   machines.forEach(m=>{
+
    const option=document.createElement("option");
    option.value=m.id;
    option.textContent=m.name+" - "+(m.village||m.district||"");
+
    machineSelect.appendChild(option);
   });
 
-  if(machines.length===0){
-   message.textContent="अभी कोई Approved मशीन उपलब्ध नहीं है।";
-   submitBtn.disabled=true;
+  if(requestedMachineId){
+
+   const selected=machines.find(
+    m=>String(m.id)===requestedMachineId
+   );
+
+   if(selected){
+    machineSelect.value=String(selected.id);
+    showMachine();
+   }else{
+    message.textContent="चुनी हुई मशीन अभी उपलब्ध नहीं है। दूसरी मशीन चुनें।";
+   }
   }
 
+  if(machines.length===0){
+   message.textContent="अभी कोई Approved मशीन उपलब्ध नहीं है।";
+   return;
+  }
+
+  message.textContent="मशीन चुनें और Booking की जानकारी भरें।";
+
  }catch(error){
+
   message.textContent="त्रुटि: "+error.message;
+
+ }finally{
+
+  submitBtn.disabled=machines.length===0;
  }
 }
 
 form.addEventListener("submit",async(e)=>{
+
  e.preventDefault();
+
  submitBtn.disabled=true;
  message.textContent="बुकिंग भेजी जा रही है...";
 
  try{
+
   if(!user)throw new Error("पहले Login करें।");
 
   const machine=machines.find(
@@ -153,27 +203,40 @@ form.addEventListener("submit",async(e)=>{
   );
 
   if(!machine)throw new Error("मशीन चुनें।");
+
   if(machine.owner_id===user.id){
    throw new Error("आप अपनी मशीन खुद बुक नहीं कर सकते।");
   }
 
+  if(machine.availability_status &&
+     machine.availability_status!=="available"){
+   throw new Error("यह मशीन अभी बुकिंग के लिए उपलब्ध नहीं है।");
+  }
+
   const serviceDate=document.getElementById("service_date").value;
-  const serviceAddress=document.getElementById("service_address").value.trim();
+
+  const serviceAddress=document
+   .getElementById("service_address").value.trim();
 
   if(!serviceDate||!serviceAddress){
    throw new Error("तारीख और काम का स्थान भरें।");
   }
 
-  const {error}=await supabase.from("bookings").insert({
+  const bookingData={
    machine_id:machine.id,
    machine_name_snapshot:machine.name,
    customer_id:user.id,
    owner_id:machine.owner_id,
+   booking_date:new Date().toISOString(),
    service_date:serviceDate,
    service_address:serviceAddress,
    customer_note:document.getElementById("customer_note").value.trim(),
    status:"pending"
-  });
+  };
+
+  const {error}=await supabase
+   .from("bookings")
+   .insert(bookingData);
 
   if(error)throw error;
 
@@ -184,8 +247,11 @@ form.addEventListener("submit",async(e)=>{
   preview.style.display="none";
 
  }catch(error){
+
   message.textContent="त्रुटि: "+error.message;
+
  }finally{
+
   submitBtn.disabled=false;
  }
 });
