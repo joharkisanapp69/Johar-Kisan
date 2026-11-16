@@ -53,7 +53,7 @@ footer{text-align:center;padding:20px;color:#66806a;font-size:12px}
 <span>🏠</span>Home
 </button>
 
-<button class="menu" onclick="showPage('machines')">
+<button class="menu" onclick="window.location.href='./my-machines.html'">
 <span>🚜</span>My Machines
 </button>
 
@@ -197,7 +197,6 @@ document.getElementById("save").onclick=async()=>{
 window.showPage=function(page){
  const titles={
   home:"Home",
-  machines:"My Machines",
   bookings:"My Bookings",
   history:"History",
   profile:"Profile",
@@ -206,7 +205,6 @@ window.showPage=function(page){
 
  const descriptions={
   home:"JOHAR KISAN में आपका स्वागत है।",
-  machines:"मशीन जोड़ने, Edit और Delete करने की सुविधा अगले चरण में बनेगी।",
   bookings:"आपकी नई और पुरानी बुकिंग यहाँ दिखाई जाएगी।",
   history:"Customer और Owner की पुरानी गतिविधियों का रिकॉर्ड यहाँ मिलेगा।",
   profile:"आपकी व्यक्तिगत जानकारी और अकाउंट सेटिंग यहाँ आएँगी।",
