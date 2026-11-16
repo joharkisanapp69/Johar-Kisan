@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOHAR KISAN - Admin Bookings</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#edf5ed;color:#17351e}
+header{background:#176b35;color:white;padding:18px}
+main{max-width:1100px;margin:auto;padding:16px}
+.card{background:white;padding:15px;margin:12px 0;border-radius:12px;box-shadow:0 2px 8px #0001}
+button,select{padding:10px;border:1px solid #ccc;border-radius:7px;margin:4px}
+button{background:#176b35;color:white;border:0;cursor:pointer}
+.secondary{background:#555}
+.status{font-weight:bold;color:#176b35}
+.small{font-size:13px;color:#526354;line-height:1.7}
+.filters{display:flex;flex-wrap:wrap;gap:5px}
+</style>
+</head>
+<body>
+
+<header>
+<h2>JOHAR KISAN</h2>
+<p>Admin Booking Management</p>
+</header>
+
+<main>
+<div class="card">
+<h3>सभी Bookings</h3>
+<div class="filters">
+<select id="statusFilter">
+<option value="all">सभी Bookings</option>
+<option value="pending">Pending</option>
+<option value="accepted">Accepted</option>
+<option value="completed">Completed</option>
+<option value="cancelled">Cancelled</option>
+</select>
+<button onclick="loadBookings()">Refresh</button>
+<button class="secondary" onclick="location.href='admin.html'">Back to Admin</button>
+</div>
+<p id="message" class="small">Loading...</p>
+</div>
+
+<div id="bookingList"></div>
+</main>
+
+<script type="module">
+import { supabase } from "./supabase-config.js";
+
+const message = document.getElementById("message");
+const list = document.getElementById("bookingList");
+const filter = document.getElementById("statusFilter");
+
+let isAdmin = false;
+
+function safe(value){
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",
+    '"':"&quot;","'":"&#39;"
+  })[ch]);
+}
+
+async function checkAdmin(){
+  const {data:{user},error} = await supabase.auth.getUser();
+
+  if(error || !user){
+    location.href="./auth.html";
+    return false;
+  }
+
+  const {data,error:profileError} = await supabase
+    .from("profiles")
+    .select("is_admin")
+    .eq("id",user.id)
+    .maybeSingle();
+
+  if(profileError || !data || data.is_admin !== true){
+    message.textContent="Admin access required.";
+    list.innerHTML="";
+    return false;
+  }
+
+  isAdmin = true;
+  return true;
+}
+
+async function loadBookings(){
+  if(!isAdmin) return;
+
+  message.textContent="Bookings लोड हो रही हैं...";
+  list.innerHTML="";
+
+  let query = supabase
+    .from("bookings")
+    .select("id,machine_id,customer_id,owner_id,booking_date,service_date,status,customer_note,owner_note,machine_name_snapshot,created_at")
+    .order("created_at",{ascending:false})
+    .limit(200);
+
+  if(filter.value !== "all"){
+    query=query.eq("status",filter.value);
+  }
+
+  const {data,error}=await query;
+
+  if(error){
+    message.textContent="Error: "+error.message;
+    return;
+  }
+
+  if(!data || data.length===0){
+    message.textContent="कोई Booking नहीं मिली।";
+    return;
+  }
+
+  message.textContent="कुल "+data.length+" Bookings";
+
+  data.forEach(b=>{
+    const card=document.createElement("div");
+    card.className="card";
+
+    const date=b.service_date || b.booking_date || b.created_at;
+    const statusOptions=["pending","accepted","completed","cancelled"];
+
+    card.innerHTML=`
+      <h3>${safe(b.machine_name_snapshot || "Machine Booking")}</h3>
+      <p class="small">
+        Booking ID: ${safe(b.id)}<br>
+        Customer ID: ${safe(b.customer_id)}<br>
+        Owner ID: ${safe(b.owner_id)}<br>
+        Machine ID: ${safe(b.machine_id)}<br>
+        Booking Date: ${safe(b.booking_date || "-")}<br>
+        Service Date: ${safe(b.service_date || "-")}<br>
+        Customer Note: ${safe(b.customer_note || "-")}<br>
+        Owner Note: ${safe(b.owner_note || "-")}
+      </p>
+      <p class="status">Current Status: ${safe(b.status)}</p>
+      <label>Update Status:</label>
+      <select class="newStatus">
+        ${statusOptions.map(s=>`
+          <option value="${s}" ${s===b.status?"selected":""}>${s}</option>
+        `).join("")}
+      </select>
+      <button class="updateBtn">Update</button>
+    `;
+
+    card.querySelector(".updateBtn").addEventListener("click",async()=>{
+      const newStatus=card.querySelector(".newStatus").value;
+
+      if(newStatus===b.status){
+        alert("Status में कोई बदलाव नहीं है।");
+        return;
+      }
+
+      if(!confirm("क्या आप Booking Status बदलना चाहते हैं?")) return;
+
+      const btn=card.querySelector(".updateBtn");
+      btn.disabled=true;
+      btn.textContent="Updating...";
+
+      const {error:updateError}=await supabase
+        .from("bookings")
+        .update({status:newStatus})
+        .eq("id",b.id);
+
+      if(updateError){
+        alert("Update Error: "+updateError.message);
+        btn.disabled=false;
+        btn.textContent="Update";
+        return;
+      }
+
+      alert("Booking Status Updated!");
+      loadBookings();
+    });
+
+    list.appendChild(card);
+  });
+}
+
+filter.addEventListener("change",loadBookings);
+
+if(await checkAdmin()){
+  loadBookings();
+}
+</script>
+</body>
+</html>
