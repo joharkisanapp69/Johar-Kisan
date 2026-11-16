@@ -2,142 +2,110 @@
 <html lang="hi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JOHAR KISAN Dashboard</title>
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial;background:#edf5ed;color:#17351e}
 header{background:#176b35;color:white;padding:20px}
 header h2{margin:0}
-main{padding:16px;max-width:600px;margin:auto}
-.card{background:white;padding:18px;margin:14px 0;border-radius:14px;box-shadow:0 2px 8px #0001}
-h3{color:#176b35;margin-top:0}
-button{width:100%;padding:13px;margin-top:10px;border:0;border-radius:8px;background:#176b35;color:white;font-size:15px}
-.secondary{background:#e1f1df;color:#176b35}
-#message{font-size:14px}
+main{max-width:600px;margin:auto;padding:15px}
+.card{background:white;padding:17px;margin:12px 0;border-radius:14px;box-shadow:0 2px 8px #0001}
+.menu{display:flex;align-items:center;gap:14px;width:100%;padding:16px;margin:8px 0;border:0;border-radius:10px;background:#f0f7ef;color:#176b35;text-align:left;font-size:16px}
+.menu span{font-size:23px}
+#message{color:#176b35;font-size:14px}
 </style>
 </head>
 <body>
-
 <header>
 <h2>🌾 JOHAR KISAN</h2>
 <p>आपका Dashboard</p>
 </header>
-
 <main>
 <div class="card">
 <h3>मेरी प्रोफाइल</h3>
 <p id="email">लोड हो रहा है...</p>
-<p id="name"></p>
+<p id="name">नाम लोड हो रहा है...</p>
 <p id="message"></p>
 </div>
-
+<div class="card">
+<h3>Dashboard Menu</h3>
+<button class="menu" onclick="go('home')"><span>🏠</span>Home</button>
+<button class="menu" onclick="go('machines')"><span>🚜</span>My Machines</button>
+<button class="menu" onclick="go('bookings')"><span>📋</span>My Bookings</button>
+<button class="menu" onclick="go('history')"><span>🕘</span>History</button>
+<button class="menu" onclick="go('profile')"><span>👤</span>Profile</button>
+<button class="menu" onclick="go('support')"><span>🎧</span>Help & Support</button>
+<button class="menu" id="logout"><span>🚪</span>Logout</button>
+</div>
 <div class="card">
 <h3>मेरी भूमिका</h3>
-<p>आप एक ही अकाउंट से Customer और Owner दोनों बन सकते हैं।</p>
-
-<label>
-<input type="checkbox" id="customer"> Customer
-</label>
-<br><br>
-<label>
-<input type="checkbox" id="owner"> Owner
-</label>
-
-<button id="save">जानकारी सेव करें</button>
-</div>
-
-<div class="card">
-<h3>मेरी सेवाएँ</h3>
-<button class="secondary" onclick="alert('मशीन लिस्टिंग अगला चरण है।')">
-🚜 मेरी मशीनें
-</button>
-<button class="secondary" onclick="alert('बुकिंग सुविधा अगला चरण है।')">
-📋 मेरी बुकिंग
-</button>
-</div>
-
-<div class="card">
-<h3>अकाउंट</h3>
-<button id="logout">Logout</button>
+<label><input type="checkbox" id="customer"> Customer</label><br><br>
+<label><input type="checkbox" id="owner"> Owner</label>
+<button class="menu" id="save">जानकारी सेव करें</button>
 </div>
 </main>
-
 <script type="module">
-import { supabase } from "./supabase-config.js";
+import {supabase} from "./supabase-config.js";
 
-const emailBox = document.getElementById("email");
-const nameBox = document.getElementById("name");
-const message = document.getElementById("message");
-const customer = document.getElementById("customer");
-const owner = document.getElementById("owner");
+const emailBox=document.getElementById("email");
+const nameBox=document.getElementById("name");
+const message=document.getElementById("message");
+const customer=document.getElementById("customer");
+const owner=document.getElementById("owner");
+let userId=null;
 
-let userId = null;
+async function loadDashboard(){
+ const {data:authData,error:authError}=await supabase.auth.getUser();
+ if(authError||!authData.user){
+  window.location.href="./auth.html";return;
+ }
+ const user=authData.user;
+ userId=user.id;
+ emailBox.textContent="Email: "+user.email;
 
-async function loadDashboard() {
-  const { data: authData, error: authError } =
-    await supabase.auth.getUser();
+ const {data,error}=await supabase.from("profiles")
+ .select("full_name,is_customer,is_owner")
+ .eq("id",userId).maybeSingle();
 
-  if (authError || !authData.user) {
-    window.location.href = "./auth.html";
-    return;
-  }
-
-  const user = authData.user;
-  userId = user.id;
-
-  emailBox.textContent = "Email: " + user.email;
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("full_name, is_customer, is_owner")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error) {
-    message.textContent = "Profile लोड नहीं हुई: " + error.message;
-    return;
-  }
-
-  nameBox.textContent = data?.full_name
-    ? "नाम: " + data.full_name
-    : "नाम अभी उपलब्ध नहीं है।";
-
-  customer.checked = data?.is_customer ?? true;
-  owner.checked = data?.is_owner ?? false;
+ if(error){
+  message.textContent="Profile error: "+error.message;return;
+ }
+ nameBox.textContent=data?.full_name?
+ "नाम: "+data.full_name:"नाम अभी उपलब्ध नहीं है।";
+ customer.checked=data?.is_customer??true;
+ owner.checked=data?.is_owner??false;
 }
 
-document.getElementById("save").onclick = async () => {
-  if (!userId) return;
-
-  message.textContent = "सेव हो रहा है...";
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      is_customer: customer.checked,
-      is_owner: owner.checked
-    })
-    .eq("id", userId);
-
-  message.textContent = error
-    ? "सेव नहीं हुआ: " + error.message
-    : "आपकी भूमिका सेव हो गई।";
+document.getElementById("save").onclick=async()=>{
+ if(!userId)return;
+ message.textContent="सेव हो रहा है...";
+ const {error}=await supabase.from("profiles")
+ .update({is_customer:customer.checked,is_owner:owner.checked})
+ .eq("id",userId);
+ message.textContent=error?
+ "सेव नहीं हुआ: "+error.message:"आपकी भूमिका सेव हो गई।";
 };
 
-document.getElementById("logout").onclick = async () => {
-  const { error } = await supabase.auth.signOut();
+document.getElementById("logout").onclick=async()=>{
+ const {error}=await supabase.auth.signOut();
+ if(error){message.textContent=error.message;return;}
+ window.location.href="./auth.html";
+};
 
-  if (error) {
-    message.textContent = error.message;
-    return;
-  }
-
-  window.location.href = "./auth.html";
+window.go=function(page){
+ const messages={
+ home:"आप Home पेज पर हैं।",
+ machines:"Machine Listing अगला चरण है।",
+ bookings:"Booking System अगला चरण है।",
+ history:"History System अगला चरण है।",
+ profile:"Profile विकल्प चुना गया।",
+ support:"Help & Support अगला चरण है।"
+ };
+ message.textContent=messages[page]||"";
 };
 
 loadDashboard();
 </script>
-
 </body>
 </html>
