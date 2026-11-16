@@ -22,7 +22,6 @@ main{max-width:700px;margin:auto;padding:14px}
 .stat strong{display:block;font-size:23px;color:#176b35}
 .stat small{color:#526b55}
 button.action{width:100%;padding:13px;margin-top:12px;border:0;border-radius:9px;background:#176b35;color:white;font-size:15px}
-.secondary{background:#eaf5e9!important;color:#176b35!important}
 label{display:block;margin:12px 0}
 #message{font-size:13px;color:#176b35;overflow-wrap:anywhere}
 footer{text-align:center;padding:20px;color:#66806a;font-size:12px}
@@ -53,15 +52,15 @@ footer{text-align:center;padding:20px;color:#66806a;font-size:12px}
 <span>🏠</span>Home
 </button>
 
-<button class="menu" onclick="window.location.href='./my-machines.html'">
+<button class="menu" onclick="location.href='./my-machines.html'">
 <span>🚜</span>My Machines
 </button>
 
-<button class="menu" onclick="window.location.href='./add-machine.html'">
+<button class="menu" onclick="location.href='./add-machine.html'">
 <span>➕</span>Add Machine
 </button>
 
-<button class="menu" onclick="showPage('bookings')">
+<button class="menu" onclick="location.href='./my-bookings.html'">
 <span>📋</span>My Bookings
 </button>
 
@@ -197,7 +196,6 @@ document.getElementById("save").onclick=async()=>{
 window.showPage=function(page){
  const titles={
   home:"Home",
-  bookings:"My Bookings",
   history:"History",
   profile:"Profile",
   support:"Help & Support"
@@ -205,7 +203,6 @@ window.showPage=function(page){
 
  const descriptions={
   home:"JOHAR KISAN में आपका स्वागत है।",
-  bookings:"आपकी नई और पुरानी बुकिंग यहाँ दिखाई जाएगी।",
   history:"Customer और Owner की पुरानी गतिविधियों का रिकॉर्ड यहाँ मिलेगा।",
   profile:"आपकी व्यक्तिगत जानकारी और अकाउंट सेटिंग यहाँ आएँगी।",
   support:"सहायता और शिकायत दर्ज करने की सुविधा अगले चरण में बनेगी।"
