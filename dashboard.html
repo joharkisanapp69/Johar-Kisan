@@ -1,10 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="hi">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JOHAR KISAN Dashboard</title>
-
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial,sans-serif;background:#edf5ed;color:#17351e}
@@ -15,13 +15,13 @@ main{max-width:700px;margin:auto;padding:14px}
 .card{background:white;padding:17px;margin:13px 0;border-radius:15px;box-shadow:0 2px 8px #0001}
 .card h3{margin:0 0 13px;color:#176b35}
 .menu-container{display:flex;flex-direction:row;flex-wrap:nowrap;gap:10px;overflow-x:auto;padding:10px 2px 14px;white-space:nowrap}
-.menu{flex:0 0 105px;min-width:105px;height:88px;border:0;border-radius:12px;background:#eaf5e9;color:#176b35;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;font-size:13px;font-weight:bold}
+.menu{flex:0 0 105px;min-width:105px;height:88px;border:0;border-radius:12px;background:#eaf5e9;color:#176b35;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;font-size:13px;font-weight:bold;cursor:pointer}
 .menu span{font-size:25px}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .stat{background:#f0f7ef;border-radius:12px;padding:15px}
 .stat strong{display:block;font-size:23px;color:#176b35}
 .stat small{color:#526b55}
-button.action{width:100%;padding:13px;margin-top:12px;border:0;border-radius:9px;background:#176b35;color:white;font-size:15px}
+button.action{width:100%;padding:13px;margin-top:12px;border:0;border-radius:9px;background:#176b35;color:white;font-size:15px;cursor:pointer}
 button.machine-action{background:#e5f3e5;color:#176b35;border:1px solid #176b35;font-weight:bold}
 label{display:block;margin:12px 0}
 input[type="tel"]{width:100%;padding:13px;border:1px solid #b9cdb9;border-radius:9px;font-size:16px;margin-top:7px}
@@ -29,7 +29,6 @@ input[type="tel"]{width:100%;padding:13px;border:1px solid #b9cdb9;border-radius
 footer{text-align:center;padding:20px;color:#66806a;font-size:12px}
 </style>
 </head>
-
 <body>
 
 <header>
@@ -57,7 +56,7 @@ footer{text-align:center;padding:20px;color:#66806a;font-size:12px}
 <button class="menu" onclick="location.href='./my-bookings.html'"><span>📋</span>My Bookings</button>
 <button class="menu" onclick="showPage('history')"><span>🕘</span>History</button>
 <button class="menu" onclick="showPage('profile')"><span>👤</span>Profile</button>
-<button class="menu" onclick="showPage('support')"><span>🎧</span>Help & Support</button>
+<button class="menu" onclick="location.href='./support.html'"><span>🎧</span>Help & Support</button>
 <button class="menu" id="logout"><span>🚪</span>Logout</button>
 </div>
 </div>
@@ -127,7 +126,6 @@ let currentUser=null;
 let currentProfileName="";
 
 async function loadDashboard(){
-
  const {data:authData,error:authError}=await supabase.auth.getUser();
 
  if(authError||!authData.user){
@@ -160,7 +158,6 @@ async function loadDashboard(){
 }
 
 async function loadStats(){
-
  statsMessage.textContent="आँकड़े लोड हो रहे हैं...";
 
  const {count:machines,error:machineError}=await supabase.from("machines")
@@ -190,7 +187,6 @@ async function loadStats(){
 }
 
 document.getElementById("save").onclick=async()=>{
-
  if(!userId)return;
 
  if(!customer.checked&&!owner.checked){
@@ -213,26 +209,16 @@ document.getElementById("save").onclick=async()=>{
 window.showPage=async function(page){
 
  if(page==="profile"){
-
   pageInfo.innerHTML=`
    <h3>👤 मेरी Profile</h3>
-
    <p><b>नाम:</b> <span id="profileName"></span></p>
    <p><b>Email:</b> <span id="profileEmail"></span></p>
-
    <p><b>मेरी भूमिका:</b> <span id="profileRole"></span></p>
-
-   <label>
-    मोबाइल नंबर
-    <input type="tel" id="profilePhone"
-    maxlength="10" inputmode="numeric"
-    placeholder="10 अंकों का मोबाइल नंबर">
+   <label>मोबाइल नंबर
+    <input type="tel" id="profilePhone" maxlength="10"
+    inputmode="numeric" placeholder="10 अंकों का मोबाइल नंबर">
    </label>
-
-   <button class="action" id="savePhone">
-    📱 मोबाइल नंबर सेव करें
-   </button>
-
+   <button class="action" id="savePhone">📱 मोबाइल नंबर सेव करें</button>
    <p id="profileMessage">मोबाइल नंबर लोड हो रहा है...</p>
   `;
 
@@ -259,7 +245,6 @@ window.showPage=async function(page){
   }
 
   savePhone.onclick=async()=>{
-
    const number=phoneInput.value.trim();
 
    if(!/^[6-9][0-9]{9}$/.test(number)){
@@ -270,31 +255,19 @@ window.showPage=async function(page){
    savePhone.disabled=true;
    profileMessage.textContent="मोबाइल नंबर सेव हो रहा है...";
 
-   const {data,error}=await supabase.rpc("set_my_phone",{
-    p_phone:number
-   });
+   const {error}=await supabase.rpc("set_my_phone",{p_phone:number});
 
    savePhone.disabled=false;
-
-   if(error){
-    profileMessage.textContent="सेव नहीं हुआ: "+error.message;
-   }else{
-    profileMessage.textContent="मोबाइल नंबर सफलतापूर्वक सेव हो गया।";
-   }
+   profileMessage.textContent=error
+    ?"सेव नहीं हुआ: "+error.message
+    :"मोबाइल नंबर सफलतापूर्वक सेव हो गया।";
   };
 
  }else{
-
-  const titles={
-   home:"Home",
-   history:"History",
-   support:"Help & Support"
-  };
-
+  const titles={home:"Home",history:"History"};
   const descriptions={
    home:"JOHAR KISAN में आपका स्वागत है।",
-   history:"पुरानी गतिविधियों का रिकॉर्ड यहाँ मिलेगा।",
-   support:"सहायता और शिकायत की सुविधा अगले चरण में बनेगी।"
+   history:"पुरानी गतिविधियों का रिकॉर्ड यहाँ मिलेगा।"
   };
 
   pageInfo.innerHTML="";
@@ -311,7 +284,6 @@ window.showPage=async function(page){
 };
 
 document.getElementById("logout").onclick=async()=>{
-
  const {error}=await supabase.auth.signOut();
 
  if(error){
@@ -324,6 +296,5 @@ document.getElementById("logout").onclick=async()=>{
 
 loadDashboard();
 </script>
-
 </body>
 </html>
