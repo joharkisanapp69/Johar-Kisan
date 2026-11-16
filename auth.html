@@ -4,7 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>JOHAR KISAN - Login</title>
+
 <style>
+* { box-sizing: border-box; }
+
 body {
   margin: 0;
   font-family: Arial, sans-serif;
@@ -13,84 +16,162 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
+  padding: 15px;
 }
+
 .card {
   background: white;
   padding: 25px;
   border-radius: 18px;
-  width: 85%;
+  width: 100%;
   max-width: 380px;
   box-shadow: 0 4px 18px #0002;
 }
-h2 { color: #176b35; text-align: center; }
+
+h2 {
+  color: #176b35;
+  text-align: center;
+}
+
+h3 { text-align: center; }
+
 input, button {
   width: 100%;
   padding: 13px;
   margin: 9px 0;
-  box-sizing: border-box;
   border-radius: 8px;
+  font-size: 15px;
 }
+
 input { border: 1px solid #bbb; }
+
 button {
   background: #176b35;
   color: white;
   border: 0;
   font-size: 16px;
+  cursor: pointer;
 }
+
+button:disabled {
+  opacity: 0.6;
+}
+
 .switch {
   text-align: center;
   color: #176b35;
   cursor: pointer;
 }
-#message { text-align: center; font-size: 14px; }
+
+#message {
+  text-align: center;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+[hidden] {
+  display: none !important;
+}
 </style>
 </head>
+
 <body>
+
 <div class="card">
+
 <h2>🌾 JOHAR KISAN</h2>
 <h3 id="heading">Login</h3>
 
 <div id="nameBox" hidden>
-<input id="name" placeholder="पूरा नाम">
+  <input id="name" type="text" placeholder="पूरा नाम">
 </div>
 
-<input id="email" type="email" placeholder="Email Address">
+<input id="email" type="email" placeholder="Gmail Address">
+
 <input id="password" type="password" placeholder="Password">
 
-<button id="submit">Login</button>
-<p class="switch" id="toggle">नया अकाउंट बनाएँ? Signup</p>
-<p id="message"></p>
+<button id="submit" type="button">Login</button>
+
+<p class="switch" id="forgot">Password भूल गए?</p>
+
+<p class="switch" id="toggle">
+नया अकाउंट बनाएँ? Signup
+</p>
+
+<p id="message" role="status"></p>
+
 </div>
 
 <script type="module">
-import { signup, login } from "./auth.js";
 
-let isSignup = false;
+import { signup, login } from "./auth.js";
+import { supabase } from "./supabase-config.js";
 
 const heading = document.getElementById("heading");
 const nameBox = document.getElementById("nameBox");
+const nameInput = document.getElementById("name");
+const emailInput = document.getElementById("email");
+const passwordInput = document.getElementById("password");
 const submit = document.getElementById("submit");
 const toggle = document.getElementById("toggle");
+const forgot = document.getElementById("forgot");
 const message = document.getElementById("message");
+
+let isSignup = false;
 
 toggle.onclick = () => {
   isSignup = !isSignup;
-  heading.textContent = isSignup ? "Signup" : "Login";
+
+  heading.textContent = isSignup ? "नया अकाउंट बनाएँ" : "Login";
+
   submit.textContent = isSignup ? "Create Account" : "Login";
+
   nameBox.hidden = !isSignup;
+
+  forgot.hidden = isSignup;
+
   toggle.textContent = isSignup
     ? "पहले से अकाउंट है? Login"
     : "नया अकाउंट बनाएँ? Signup";
+
   message.textContent = "";
 };
 
+forgot.onclick = async () => {
+  const email = emailInput.value.trim();
+
+  if (!email) {
+    message.textContent = "पहले अपना Gmail Address भरें।";
+    return;
+  }
+
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + "/Johar-Kisan/auth.html"
+    });
+
+    if (error) throw error;
+
+    message.textContent = "Password Reset Link आपके Email पर भेज दिया गया है।";
+
+  } catch (error) {
+    message.textContent = error.message;
+  }
+};
+
 submit.onclick = async () => {
-  const email = document.getElementById("email").value.trim();
-  const password = document.getElementById("password").value;
-  const name = document.getElementById("name").value.trim();
+
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+  const name = nameInput.value.trim();
 
   if (!email || !password || (isSignup && !name)) {
     message.textContent = "सभी जानकारी भरें।";
+    return;
+  }
+
+  if (isSignup && password.length < 6) {
+    message.textContent = "Password कम से कम 6 अक्षरों का होना चाहिए।";
     return;
   }
 
@@ -98,21 +179,35 @@ submit.onclick = async () => {
   message.textContent = "कृपया प्रतीक्षा करें...";
 
   try {
+
     if (isSignup) {
+
       const result = await signup(name, email, password);
+
       message.textContent = result.session
-        ? "Signup सफल! अब Login कर सकते हैं।"
-        : "Signup सफल! Email में Confirmation Link चेक करें।";
+        ? "Signup सफल! आपका स्वागत है।"
+        : "Signup सफल! अपने Email में Confirmation Link चेक करें।";
+
     } else {
+
       await login(email, password);
+
       message.textContent = "Login सफल! स्वागत है।";
+
     }
+
   } catch (error) {
+
     message.textContent = error.message;
+
   } finally {
+
     submit.disabled = false;
+
   }
 };
+
 </script>
+
 </body>
 </html>
