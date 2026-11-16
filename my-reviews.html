@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="hi">
 <head>
@@ -7,92 +8,22 @@
 
 <style>
 *{box-sizing:border-box}
-body{
- margin:0;
- font-family:Arial,sans-serif;
- background:#edf5ed;
- color:#17351e;
-}
-header{
- background:#176b35;
- color:white;
- padding:18px;
-}
-main{
- max-width:750px;
- margin:auto;
- padding:14px;
-}
-.card{
- background:white;
- padding:17px;
- margin:13px 0;
- border-radius:13px;
- box-shadow:0 2px 8px #0001;
-}
-button{
- padding:11px 15px;
- border:0;
- border-radius:8px;
- background:#176b35;
- color:white;
- cursor:pointer;
-}
-.summary{
- display:grid;
- grid-template-columns:repeat(2,1fr);
- gap:10px;
-}
-.stat{
- background:#f0f7ef;
- padding:15px;
- border-radius:10px;
- text-align:center;
-}
-.number{
- font-size:27px;
- font-weight:bold;
- color:#176b35;
-}
-.stars{
- color:#d58a00;
- font-size:21px;
- letter-spacing:2px;
-}
-.review{
- border:1px solid #dce8dc;
- border-radius:10px;
- padding:13px;
- margin:12px 0;
- overflow-wrap:anywhere;
-}
-.info{
- color:#526552;
- font-size:14px;
- line-height:1.5;
-}
-.bar-row{
- display:flex;
- align-items:center;
- gap:8px;
- margin:9px 0;
- font-size:14px;
-}
-.bar{
- flex:1;
- height:10px;
- background:#e2e9e2;
- border-radius:10px;
- overflow:hidden;
-}
-.fill{
- height:100%;
- background:#d9a321;
-}
-#message{
- line-height:1.5;
- overflow-wrap:anywhere;
-}
+body{margin:0;font-family:Arial,sans-serif;background:#edf5ed;color:#17351e}
+header{background:#176b35;color:white;padding:18px}
+main{max-width:750px;margin:auto;padding:14px}
+.card{background:white;padding:17px;margin:13px 0;border-radius:13px;box-shadow:0 2px 8px #0001}
+button{padding:11px 15px;border:0;border-radius:8px;background:#176b35;color:white;cursor:pointer}
+.summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.stat{background:#f0f7ef;padding:15px;border-radius:10px;text-align:center}
+.number{font-size:27px;font-weight:bold;color:#176b35}
+.stars{color:#d58a00;font-size:21px;letter-spacing:2px}
+.review,.machine-review{border:1px solid #dce8dc;border-radius:10px;padding:13px;margin:12px 0;overflow-wrap:anywhere}
+.info{color:#526552;font-size:14px;line-height:1.5}
+.bar-row{display:flex;align-items:center;gap:8px;margin:9px 0;font-size:14px}
+.bar{flex:1;height:10px;background:#e2e9e2;border-radius:10px;overflow:hidden}
+.fill{height:100%;background:#d9a321}
+.best{background:#fff8df;padding:13px;border-radius:10px;margin-top:12px}
+#message{line-height:1.5;overflow-wrap:anywhere}
 </style>
 </head>
 
@@ -106,32 +37,36 @@ button{
 <main>
 
 <div class="card">
-<button onclick="location.href='./dashboard.html'">
-← Dashboard
-</button>
-
+<button onclick="location.href='./dashboard.html'">← Dashboard</button>
 <h2>⭐ Owner Reviews Dashboard</h2>
 <p id="message">Reviews लोड हो रहे हैं...</p>
 </div>
 
 <div class="card">
-<h3>📊 Rating Summary</h3>
-
+<h3>📊 Overall Rating Summary</h3>
 <div class="summary">
  <div class="stat">
   <div class="number" id="average">0.0</div>
   <div class="stars" id="averageStars">☆☆☆☆☆</div>
   <div class="info">Average Rating</div>
  </div>
-
  <div class="stat">
   <div class="number" id="total">0</div>
   <div class="info">Total Reviews</div>
  </div>
 </div>
 
+<div class="best" id="bestMachine">
+ 🏆 सबसे अच्छी रेटिंग वाली मशीन: अभी कोई डेटा नहीं
+</div>
+
 <h3>Rating Details</h3>
 <div id="ratingBars"></div>
+</div>
+
+<div class="card">
+<h3>🚜 Machine-wise Ratings</h3>
+<div id="machineList">लोड हो रहा है...</div>
 </div>
 
 <div class="card">
@@ -147,9 +82,11 @@ import {supabase} from "./supabase-config.js";
 const message=document.getElementById("message");
 const reviewList=document.getElementById("reviewList");
 const ratingBars=document.getElementById("ratingBars");
+const machineList=document.getElementById("machineList");
 
 function makeStars(rating){
- return "★".repeat(rating)+"☆".repeat(5-rating);
+ const n=Math.max(0,Math.min(5,Math.round(Number(rating)||0)));
+ return "★".repeat(n)+"☆".repeat(5-n);
 }
 
 function addText(parent,text,className="info"){
@@ -161,24 +98,20 @@ function addText(parent,text,className="info"){
 
 function formatDate(value){
  if(!value)return "-";
-
  const date=new Date(value);
  if(Number.isNaN(date.getTime()))return "-";
-
  return date.toLocaleDateString("hi-IN");
 }
 
-function showSummary(reviews){
+function showSummary(reviews,machines){
  const total=reviews.length;
-
  const average=total
   ?reviews.reduce((sum,r)=>sum+Number(r.rating),0)/total
   :0;
 
  document.getElementById("average").textContent=average.toFixed(1);
  document.getElementById("total").textContent=total;
- document.getElementById("averageStars").textContent=
-  makeStars(Math.round(average));
+ document.getElementById("averageStars").textContent=makeStars(average);
 
  ratingBars.innerHTML="";
 
@@ -207,6 +140,74 @@ function showSummary(reviews){
   row.append(label,bar,value);
   ratingBars.appendChild(row);
  }
+
+ // Machine-wise rating calculation
+ const grouped={};
+
+ reviews.forEach(r=>{
+  if(!r.machine_id)return;
+
+  if(!grouped[r.machine_id]){
+   grouped[r.machine_id]={
+    total:0,
+    sum:0
+   };
+  }
+
+  grouped[r.machine_id].total++;
+  grouped[r.machine_id].sum+=Number(r.rating);
+ });
+
+ const machineRatings=Object.entries(grouped).map(([id,data])=>{
+  const machine=machines.find(m=>m.id===id);
+
+  return {
+   id,
+   name:machine?machine.name:"Machine",
+   total:data.total,
+   average:data.sum/data.total
+  };
+ });
+
+ machineRatings.sort((a,b)=>b.average-a.average);
+
+ const best=document.getElementById("bestMachine");
+
+ if(machineRatings.length){
+  const top=machineRatings[0];
+  best.textContent=
+   "🏆 सबसे अच्छी रेटिंग वाली मशीन: "+top.name+
+   " | ⭐ "+top.average.toFixed(1)+"/5"+
+   " | "+top.total+" Reviews";
+ }else{
+  best.textContent="🏆 अभी किसी मशीन पर Review नहीं मिला है।";
+ }
+
+ machineList.innerHTML="";
+
+ if(machineRatings.length===0){
+  machineList.textContent="अभी मशीनों की कोई Rating उपलब्ध नहीं है।";
+ }else{
+  machineRatings.forEach(m=>{
+   const card=document.createElement("div");
+   card.className="machine-review";
+
+   const name=document.createElement("strong");
+   name.textContent="🚜 "+m.name;
+
+   const stars=document.createElement("div");
+   stars.className="stars";
+   stars.textContent=makeStars(m.average);
+
+   addText(card,"औसत Rating: "+m.average.toFixed(1)+"/5");
+   addText(card,"कुल Reviews: "+m.total);
+
+   card.prepend(stars);
+   card.prepend(name);
+
+   machineList.appendChild(card);
+  });
+ }
 }
 
 async function loadReviews(){
@@ -214,8 +215,7 @@ async function loadReviews(){
  reviewList.innerHTML="";
 
  try{
-  const {data:authData,error:authError}=
-   await supabase.auth.getUser();
+  const {data:authData,error:authError}=await supabase.auth.getUser();
 
   if(authError)throw authError;
 
@@ -226,21 +226,31 @@ async function loadReviews(){
 
   const user=authData.user;
 
-  const {data,error}=await supabase
-   .from("reviews")
-   .select("id,booking_id,rating,review_text,created_at")
-   .eq("owner_id",user.id)
-   .order("created_at",{ascending:false});
+  const [reviewResult,machineResult]=await Promise.all([
+   supabase
+    .from("reviews")
+    .select("id,booking_id,machine_id,rating,review_text,created_at")
+    .eq("owner_id",user.id)
+    .order("created_at",{ascending:false}),
 
-  if(error)throw error;
+   supabase
+    .from("machines")
+    .select("id,name")
+    .eq("owner_id",user.id)
+  ]);
 
-  const reviews=data||[];
+  if(reviewResult.error)throw reviewResult.error;
+  if(machineResult.error)throw machineResult.error;
 
-  showSummary(reviews);
+  const reviews=reviewResult.data||[];
+  const machines=machineResult.data||[];
+
+  showSummary(reviews,machines);
 
   if(reviews.length===0){
    message.textContent="अभी तक कोई Review नहीं मिला है।";
-   reviewList.textContent="जब Customer आपकी Completed Booking पर Review देगा, वह यहाँ दिखाई देगा।";
+   reviewList.textContent=
+    "जब Customer आपकी Completed Booking पर Review देगा, वह यहाँ दिखाई देगा।";
    return;
   }
 
@@ -259,7 +269,8 @@ async function loadReviews(){
 
    card.append(stars,rating);
 
-   addText(card,"Booking ID: "+r.booking_id);
+   const machine=machines.find(m=>m.id===r.machine_id);
+   addText(card,"मशीन: "+(machine?machine.name:"मशीन की जानकारी उपलब्ध नहीं"));
 
    if(r.review_text){
     addText(card,"Customer Review: "+r.review_text);
