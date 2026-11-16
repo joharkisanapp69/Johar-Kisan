@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="hi">
 <head>
@@ -12,6 +11,7 @@ header{background:#176b35;color:white;padding:18px}
 main{max-width:700px;margin:auto;padding:14px}
 .card{background:white;padding:17px;margin:13px 0;border-radius:14px;box-shadow:0 2px 8px #0001}
 button{padding:12px;border:0;border-radius:9px;background:#176b35;color:white;font-size:14px;cursor:pointer}
+button:disabled{opacity:.6}
 .top{display:flex;gap:8px;flex-wrap:wrap}
 .machine{border:1px solid #dce8dc;border-radius:12px;padding:13px;margin:13px 0}
 .machine img{width:100%;max-height:190px;object-fit:cover;border-radius:9px}
@@ -19,9 +19,11 @@ button{padding:12px;border:0;border-radius:9px;background:#176b35;color:white;fo
 .muted{color:#647664;font-size:13px}
 #message{overflow-wrap:anywhere;color:#176b35}
 .danger{background:#a52d2d}
+.edit{background:#dceedd;color:#176b35;font-weight:bold}
 </style>
 </head>
 <body>
+
 <header>
 <h2>🌾 JOHAR KISAN</h2>
 <p>मेरी मशीनें</p>
@@ -46,20 +48,25 @@ import {supabase} from "./supabase-config.js";
 const message=document.getElementById("message");
 const list=document.getElementById("machineList");
 
+let currentUser=null;
+
 async function loadMachines(){
  list.innerHTML="";
  message.textContent="मशीनें लोड हो रही हैं...";
 
  const {data:authData,error:authError}=await supabase.auth.getUser();
+
  if(authError||!authData.user){
   location.href="./auth.html";
   return;
  }
 
+ currentUser=authData.user;
+
  const {data,error}=await supabase
   .from("machines")
   .select("*")
-  .eq("owner_id",authData.user.id)
+  .eq("owner_id",currentUser.id)
   .order("created_at",{ascending:false});
 
  if(error){
@@ -93,11 +100,12 @@ async function loadMachines(){
   const details=[
    "श्रेणी: "+(machine.category||"-"),
    "किराया: ₹"+(machine.price??"-")+" / "+(machine.price_unit||"-"),
+   "विवरण: "+(machine.description||"-"),
    "गाँव: "+(machine.village||"-"),
    "तहसील: "+(machine.tehsil||"-"),
    "जिला: "+(machine.district||"-"),
    "राज्य: "+(machine.state||"-"),
-   "स्थिति: "+(machine.availability_status||"available"),
+   "उपलब्धता: "+(machine.availability_status||"available"),
    "लिस्टिंग: "+(machine.is_active?"Active":"Admin की मंजूरी बाकी")
   ];
 
@@ -108,17 +116,29 @@ async function loadMachines(){
    card.appendChild(p);
   });
 
+  // EDIT BUTTON
+  const edit=document.createElement("button");
+  edit.className="edit";
+  edit.textContent="✏️ Edit Machine";
+  edit.onclick=()=>editMachine(machine,edit);
+  card.appendChild(edit);
+
+  // DELETE BUTTON
   const del=document.createElement("button");
   del.className="danger";
+  del.style.marginLeft="8px";
   del.textContent="Delete Machine";
+
   del.onclick=async()=>{
    if(!confirm("क्या आप इस मशीन को हटाना चाहते हैं?"))return;
+
    del.disabled=true;
+
    const {error:deleteError}=await supabase
     .from("machines")
     .delete()
     .eq("id",machine.id)
-    .eq("owner_id",authData.user.id);
+    .eq("owner_id",currentUser.id);
 
    if(deleteError){
     alert("Delete नहीं हुआ: "+deleteError.message);
@@ -128,9 +148,105 @@ async function loadMachines(){
     loadMachines();
    }
   };
+
   card.appendChild(del);
   list.appendChild(card);
  });
+}
+
+async function editMachine(machine,button){
+
+ const ask=(label,value)=>{
+  return prompt(label,value??"");
+ };
+
+ const name=ask("मशीन का नाम:",machine.name);
+ if(name===null)return;
+
+ const category=ask("मशीन की श्रेणी:",machine.category);
+ if(category===null)return;
+
+ const description=ask("मशीन का विवरण:",machine.description);
+ if(description===null)return;
+
+ const price=ask("किराया / कीमत:",machine.price);
+ if(price===null)return;
+
+ const priceUnit=ask("कीमत की यूनिट (घंटा/दिन/एकड़):",machine.price_unit);
+ if(priceUnit===null)return;
+
+ const village=ask("गाँव:",machine.village);
+ if(village===null)return;
+
+ const tehsil=ask("तहसील:",machine.tehsil);
+ if(tehsil===null)return;
+
+ const district=ask("जिला:",machine.district);
+ if(district===null)return;
+
+ const state=ask("राज्य:",machine.state);
+ if(state===null)return;
+
+ const availability=ask(
+  "उपलब्धता लिखें: available / booked / maintenance",
+  machine.availability_status||"available"
+ );
+
+ if(availability===null)return;
+
+ const cleanPrice=Number(price);
+
+ if(!name.trim()||!category.trim()){
+  alert("मशीन का नाम और श्रेणी जरूरी है।");
+  return;
+ }
+
+ if(price.trim()===""||!Number.isFinite(cleanPrice)||cleanPrice<0){
+  alert("कृपया सही कीमत डालें।");
+  return;
+ }
+
+ const allowed=["available","booked","maintenance"];
+
+ if(!allowed.includes(availability.trim().toLowerCase())){
+  alert("उपलब्धता available, booked या maintenance होनी चाहिए।");
+  return;
+ }
+
+ const updated={
+  name:name.trim(),
+  category:category.trim(),
+  description:description.trim(),
+  price:cleanPrice,
+  price_unit:priceUnit.trim(),
+  village:village.trim(),
+  tehsil:tehsil.trim(),
+  district:district.trim(),
+  state:state.trim(),
+  availability_status:availability.trim().toLowerCase()
+ };
+
+ if(!confirm("क्या आप मशीन की नई जानकारी सेव करना चाहते हैं?"))return;
+
+ button.disabled=true;
+ button.textContent="Saving...";
+
+ const {error}=await supabase
+  .from("machines")
+  .update(updated)
+  .eq("id",machine.id)
+  .eq("owner_id",currentUser.id);
+
+ button.disabled=false;
+ button.textContent="✏️ Edit Machine";
+
+ if(error){
+  alert("जानकारी अपडेट नहीं हुई: "+error.message);
+  return;
+ }
+
+ alert("मशीन की जानकारी अपडेट हो गई।");
+ loadMachines();
 }
 
 loadMachines();
