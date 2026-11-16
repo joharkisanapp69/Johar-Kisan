@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOHAR KISAN - My Profile</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#edf5ed;color:#17351e}
+header{background:#176b35;color:white;padding:18px}
+main{max-width:600px;margin:auto;padding:14px}
+.card{background:white;padding:18px;margin:14px 0;border-radius:14px;box-shadow:0 2px 8px #0001}
+label{display:block;margin:14px 0 6px;font-weight:bold}
+input{width:100%;padding:13px;border:1px solid #ccdccc;border-radius:8px;font-size:16px}
+button{padding:12px 16px;border:0;border-radius:8px;background:#176b35;color:white;font-size:15px;cursor:pointer}
+button:disabled{opacity:.6}
+.info{color:#526552;font-size:14px;overflow-wrap:anywhere}
+#message{line-height:1.5;overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<header>
+<h2>🌾 JOHAR KISAN</h2>
+<p>My Profile - मेरी प्रोफाइल</p>
+</header>
+
+<main>
+<div class="card">
+<button onclick="location.href='./dashboard.html'">← Dashboard</button>
+<h2>👤 मेरी प्रोफाइल</h2>
+
+<p class="info" id="name">नाम लोड हो रहा है...</p>
+<p class="info" id="email">Email लोड हो रहा है...</p>
+
+<hr>
+
+<label for="phone">📱 मोबाइल नंबर</label>
+<input id="phone" type="tel" inputmode="numeric"
+maxlength="10" placeholder="10 अंकों का मोबाइल नंबर">
+
+<p class="info">आपका नंबर Booking Contact में तभी साझा होगा जब आप और दूसरा व्यक्ति दोनों सहमति देंगे।</p>
+
+<button id="saveBtn" onclick="savePhone()">मोबाइल नंबर सेव करें</button>
+
+<p id="message"></p>
+</div>
+</main>
+
+<script type="module">
+import {supabase} from "./supabase-config.js";
+
+const nameEl=document.getElementById("name");
+const emailEl=document.getElementById("email");
+const phoneEl=document.getElementById("phone");
+const message=document.getElementById("message");
+const saveBtn=document.getElementById("saveBtn");
+
+async function loadProfile(){
+ try{
+  const {data:authData,error:authError}=await supabase.auth.getUser();
+  if(authError)throw authError;
+
+  if(!authData.user){
+   location.href="./auth.html";
+   return;
+  }
+
+  const user=authData.user;
+
+  const {data:profile,error:profileError}=await supabase
+   .from("profiles")
+   .select("full_name")
+   .eq("id",user.id)
+   .maybeSingle();
+
+  if(profileError)throw profileError;
+
+  nameEl.textContent="नाम: "+
+   (profile?.full_name||user.user_metadata?.full_name||"उपलब्ध नहीं");
+
+  emailEl.textContent="Email: "+(user.email||"-");
+
+  const {data:phone,error:phoneError}=await supabase
+   .rpc("get_my_phone");
+
+  if(phoneError)throw phoneError;
+
+  phoneEl.value=phone||"";
+
+ }catch(error){
+  message.textContent="त्रुटि: "+error.message;
+ }
+}
+
+async function savePhone(){
+ const phone=phoneEl.value.trim();
+
+ if(!/^[6-9][0-9]{9}$/.test(phone)){
+  message.textContent="कृपया सही 10 अंकों का भारतीय मोबाइल नंबर डालें।";
+  return;
+ }
+
+ saveBtn.disabled=true;
+ message.textContent="मोबाइल नंबर सेव हो रहा है...";
+
+ try{
+  const {data,error}=await supabase.rpc(
+   "set_my_phone",
+   {p_phone:phone}
+  );
+
+  if(error)throw error;
+
+  if(data!==true)throw new Error("नंबर सेव नहीं हुआ।");
+
+  message.textContent="✅ मोबाइल नंबर सफलतापूर्वक सेव हो गया।";
+
+ }catch(error){
+  message.textContent="त्रुटि: "+error.message;
+ }finally{
+  saveBtn.disabled=false;
+ }
+}
+
+window.savePhone=savePhone;
+loadProfile();
+</script>
+</body>
+</html>
