@@ -50,6 +50,17 @@ const message=document.getElementById("message");
 const list=document.getElementById("machineList");
 let currentUser=null;
 
+async function loadCategories(){
+ const {data,error}=await supabase
+  .from("categories")
+  .select("id,name")
+  .eq("is_active",true)
+  .order("name");
+
+ if(error)throw error;
+ return data||[];
+}
+
 async function loadMachines(){
  list.innerHTML="";
  message.textContent="मशीनें लोड हो रही हैं...";
@@ -235,34 +246,87 @@ async function loadMachines(){
 }
 
 async function editMachine(machine,button){
- const ask=(label,value)=>prompt(label,value??"");
+ let categories;
 
- const name=ask("मशीन का नाम:",machine.name);
+ try{
+  categories=await loadCategories();
+ }catch(error){
+  alert("Categories लोड नहीं हुईं: "+error.message);
+  return;
+ }
+
+ if(categories.length===0){
+  alert("कोई Active Category उपलब्ध नहीं है। Admin से Category जोड़ने को कहें।");
+  return;
+ }
+
+ const name=prompt("मशीन का नाम:",machine.name);
  if(name===null)return;
- const category=ask("मशीन की श्रेणी:",machine.category);
- if(category===null)return;
- const description=ask("मशीन का विवरण:",machine.description);
+
+ const categorySelect=document.createElement("select");
+ categorySelect.style.cssText="width:90%;padding:12px;margin:10px;font-size:16px";
+
+ categories.forEach(category=>{
+  const option=document.createElement("option");
+  option.value=category.name;
+  option.textContent=category.name;
+  categorySelect.appendChild(option);
+ });
+
+ const existingCategory=categories.find(c=>c.name===machine.category);
+ if(existingCategory){
+  categorySelect.value=existingCategory.name;
+ }else{
+  const oldOption=document.createElement("option");
+  oldOption.value=machine.category||"";
+  oldOption.textContent=(machine.category||"पुरानी Category")+" (पुरानी)";
+  categorySelect.insertBefore(oldOption,categorySelect.firstChild);
+  categorySelect.value=oldOption.value;
+ }
+
+ const categoryDialog=confirm(
+  "Category चुनने के लिए OK दबाएँ।\nअगली स्क्रीन पर Category Dropdown खुलेगा।"
+ );
+ if(!categoryDialog)return;
+
+ const categoryChoice=prompt(
+  "अपनी Category का नाम चुनें:\n"+
+  categories.map((c,i)=>(i+1)+". "+c.name).join("\n")+
+  "\n\nवर्तमान Category: "+(machine.category||"-")+
+  "\nनई Category का नाम बिल्कुल वैसा ही लिखें:"
+ );
+ if(categoryChoice===null)return;
+
+ const selectedCategory=categories.find(
+  c=>c.name.toLowerCase()===categoryChoice.trim().toLowerCase()
+ );
+ if(!selectedCategory){
+  alert("कृपया सूची में से सही Category का नाम लिखें।");
+  return;
+ }
+
+ const description=prompt("मशीन का विवरण:",machine.description||"");
  if(description===null)return;
- const price=ask("किराया / कीमत:",machine.price);
+ const price=prompt("किराया / कीमत:",machine.price);
  if(price===null)return;
- const priceUnit=ask("कीमत की यूनिट:",machine.price_unit);
+ const priceUnit=prompt("कीमत की यूनिट:",machine.price_unit||"");
  if(priceUnit===null)return;
- const village=ask("गाँव:",machine.village);
+ const village=prompt("गाँव:",machine.village||"");
  if(village===null)return;
- const tehsil=ask("तहसील:",machine.tehsil);
+ const tehsil=prompt("तहसील:",machine.tehsil||"");
  if(tehsil===null)return;
- const district=ask("जिला:",machine.district);
+ const district=prompt("जिला:",machine.district||"");
  if(district===null)return;
- const state=ask("राज्य:",machine.state);
+ const state=prompt("राज्य:",machine.state||"");
  if(state===null)return;
- const availability=ask(
+ const availability=prompt(
   "उपलब्धता: available / booked / maintenance",
   machine.availability_status||"available"
  );
  if(availability===null)return;
 
  const cleanPrice=Number(price);
- if(!name.trim()||!category.trim()){
+ if(!name.trim()||!selectedCategory.name.trim()){
   alert("मशीन का नाम और श्रेणी जरूरी है।");
   return;
  }
@@ -278,7 +342,7 @@ async function editMachine(machine,button){
 
  const updated={
   name:name.trim(),
-  category:category.trim(),
+  category:selectedCategory.name,
   description:description.trim(),
   price:cleanPrice,
   price_unit:priceUnit.trim(),
