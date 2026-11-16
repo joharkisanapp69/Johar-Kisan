@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="hi">
 <head>
@@ -18,10 +17,10 @@ button:disabled{opacity:.6}
 .booking{border:1px solid #dce8dc;border-radius:10px;padding:13px;margin:13px 0}
 .booking h3{color:#176b35;overflow-wrap:anywhere}
 .info{font-size:14px;color:#526552;overflow-wrap:anywhere;line-height:1.5}
-.status{font-weight:bold;color:#176b35}
 .danger{background:#a52d2d}
 .secondary{background:#526552}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.contact{background:#f0f7ef;border-radius:9px;padding:12px;margin-top:12px}
 #message{overflow-wrap:anywhere;line-height:1.5}
 </style>
 </head>
@@ -84,7 +83,8 @@ async function loadBookings(view="all"){
   user=authData.user;
 
   let query=supabase.from("bookings").select(`
-   id,machine_id,customer_id,owner_id,booking_date,
+   id,machine_id,machine_name_snapshot,
+   customer_id,owner_id,booking_date,
    service_date,service_address,customer_note,
    owner_note,status,created_at
   `).order("created_at",{ascending:false});
@@ -114,7 +114,7 @@ async function loadBookings(view="all"){
    card.className="booking";
 
    const heading=document.createElement("h3");
-   heading.textContent="🚜 Booking #"+b.id;
+   heading.textContent="🚜 "+(b.machine_name_snapshot||"मशीन Booking");
    card.appendChild(heading);
 
    const role=b.customer_id===user.id
@@ -123,6 +123,7 @@ async function loadBookings(view="all"){
 
    const details=[
     role,
+    "Booking ID: "+b.id,
     "मशीन ID: "+(b.machine_id||"-"),
     "काम की तारीख: "+(b.service_date||"-"),
     "काम का स्थान: "+(b.service_address||"-"),
@@ -138,6 +139,21 @@ async function loadBookings(view="all"){
     p.textContent=value;
     card.appendChild(p);
    });
+
+   const contact=document.createElement("div");
+   contact.className="contact";
+
+   const contactTitle=document.createElement("strong");
+   contactTitle.textContent="🤝 Booking Contact";
+   contact.appendChild(contactTitle);
+
+   const contactText=document.createElement("p");
+   contactText.className="info";
+   contactText.textContent=
+    "संपर्क सुविधा केवल इस Booking से जुड़े लोगों के लिए उपलब्ध होगी। निजी फोन नंबर यहाँ सार्वजनिक नहीं किए जाते।";
+   contact.appendChild(contactText);
+
+   card.appendChild(contact);
 
    if(b.owner_id===user.id && b.status==="pending"){
     const actions=document.createElement("div");
