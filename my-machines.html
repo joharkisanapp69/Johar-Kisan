@@ -19,7 +19,8 @@ button:disabled{opacity:.6}
 .muted{color:#647664;font-size:13px}
 #message{overflow-wrap:anywhere;color:#176b35}
 .danger{background:#a52d2d}
-.edit{background:#dceedd;color:#176b35;font-weight:bold}
+.edit{background:#e0f0df;color:#176b35;font-weight:bold}
+.photo-btn{background:#285d9b;margin-top:8px}
 </style>
 </head>
 <body>
@@ -47,7 +48,6 @@ import {supabase} from "./supabase-config.js";
 
 const message=document.getElementById("message");
 const list=document.getElementById("machineList");
-
 let currentUser=null;
 
 async function loadMachines(){
@@ -105,7 +105,7 @@ async function loadMachines(){
    "तहसील: "+(machine.tehsil||"-"),
    "जिला: "+(machine.district||"-"),
    "राज्य: "+(machine.state||"-"),
-   "उपलब्धता: "+(machine.availability_status||"available"),
+   "स्थिति: "+(machine.availability_status||"available"),
    "लिस्टिंग: "+(machine.is_active?"Active":"Admin की मंजूरी बाकी")
   ];
 
@@ -116,16 +116,100 @@ async function loadMachines(){
    card.appendChild(p);
   });
 
-  // EDIT BUTTON
+  // EDIT MACHINE
   const edit=document.createElement("button");
   edit.className="edit";
   edit.textContent="✏️ Edit Machine";
   edit.onclick=()=>editMachine(machine,edit);
   card.appendChild(edit);
 
-  // DELETE BUTTON
+  // CHANGE PHOTO
+  const photoButton=document.createElement("button");
+  photoButton.className="photo-btn";
+  photoButton.textContent="📸 Change Photo";
+  photoButton.style.marginLeft="8px";
+
+  const fileInput=document.createElement("input");
+  fileInput.type="file";
+  fileInput.accept="image/jpeg,image/png,image/webp";
+  fileInput.style.display="none";
+
+  photoButton.onclick=()=>fileInput.click();
+
+  fileInput.onchange=async()=>{
+   const file=fileInput.files?.[0];
+   if(!file)return;
+
+   if(!["image/jpeg","image/png","image/webp"].includes(file.type)){
+    alert("केवल JPG, PNG या WEBP फोटो चुनें।");
+    fileInput.value="";
+    return;
+   }
+
+   if(file.size>5*1024*1024){
+    alert("फोटो का आकार 5 MB से कम होना चाहिए।");
+    fileInput.value="";
+    return;
+   }
+
+   if(!confirm("क्या आप इस मशीन की फोटो बदलना चाहते हैं?")){
+    fileInput.value="";
+    return;
+   }
+
+   photoButton.disabled=true;
+   photoButton.textContent="Uploading...";
+
+   const extension=file.type==="image/png"?"png":
+    file.type==="image/webp"?"webp":"jpg";
+
+   const filePath=currentUser.id+"/"+machine.id+"-"+Date.now()+"."+extension;
+
+   const {data:uploadData,error:uploadError}=await supabase.storage
+    .from("machine-photos")
+    .upload(filePath,file,{
+     contentType:file.type,
+     upsert:false
+    });
+
+   if(uploadError){
+    alert("फोटो अपलोड नहीं हुई: "+uploadError.message);
+    photoButton.disabled=false;
+    photoButton.textContent="📸 Change Photo";
+    fileInput.value="";
+    return;
+   }
+
+   const {data:urlData}=supabase.storage
+    .from("machine-photos")
+    .getPublicUrl(uploadData.path);
+
+   const {error:updateError}=await supabase
+    .from("machines")
+    .update({machine_photo_url:urlData.publicUrl})
+    .eq("id",machine.id)
+    .eq("owner_id",currentUser.id);
+
+   if(updateError){
+    alert("फोटो अपलोड हुई, लेकिन मशीन में सेव नहीं हुई: "+updateError.message+
+    "\nअपलोड की गई फाइल Storage में रह सकती है।");
+   }else{
+    alert("मशीन की नई फोटो सफलतापूर्वक सेव हो गई।");
+    loadMachines();
+   }
+
+   photoButton.disabled=false;
+   photoButton.textContent="📸 Change Photo";
+   fileInput.value="";
+  };
+
+  card.appendChild(photoButton);
+  card.appendChild(fileInput);
+
+  // DELETE MACHINE
   const del=document.createElement("button");
   del.className="danger";
+  del.style.marginTop="10px";
   del.style.marginLeft="8px";
   del.textContent="Delete Machine";
 
@@ -156,9 +240,7 @@ async function loadMachines(){
 
 async function editMachine(machine,button){
 
- const ask=(label,value)=>{
-  return prompt(label,value??"");
- };
+ const ask=(label,value)=>prompt(label,value??"");
 
  const name=ask("मशीन का नाम:",machine.name);
  if(name===null)return;
@@ -172,7 +254,7 @@ async function editMachine(machine,button){
  const price=ask("किराया / कीमत:",machine.price);
  if(price===null)return;
 
- const priceUnit=ask("कीमत की यूनिट (घंटा/दिन/एकड़):",machine.price_unit);
+ const priceUnit=ask("कीमत की यूनिट:",machine.price_unit);
  if(priceUnit===null)return;
 
  const village=ask("गाँव:",machine.village);
@@ -188,10 +270,9 @@ async function editMachine(machine,button){
  if(state===null)return;
 
  const availability=ask(
-  "उपलब्धता लिखें: available / booked / maintenance",
+  "उपलब्धता: available / booked / maintenance",
   machine.availability_status||"available"
  );
-
  if(availability===null)return;
 
  const cleanPrice=Number(price);
@@ -226,7 +307,7 @@ async function editMachine(machine,button){
   availability_status:availability.trim().toLowerCase()
  };
 
- if(!confirm("क्या आप मशीन की नई जानकारी सेव करना चाहते हैं?"))return;
+ if(!confirm("क्या आप मशीन की जानकारी अपडेट करना चाहते हैं?"))return;
 
  button.disabled=true;
  button.textContent="Saving...";
@@ -241,7 +322,7 @@ async function editMachine(machine,button){
  button.textContent="✏️ Edit Machine";
 
  if(error){
-  alert("जानकारी अपडेट नहीं हुई: "+error.message);
+  alert("अपडेट नहीं हुआ: "+error.message);
   return;
  }
 
