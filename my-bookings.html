@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JOHAR KISAN - My Bookings</title>
-
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial,sans-serif;background:#edf5ed;color:#17351e}
@@ -34,18 +33,15 @@ button:disabled{opacity:.6;cursor:not-allowed}
 .hidden-review{background:#fff0e8;border:1px solid #d99b78;padding:10px;border-radius:8px;margin-top:10px;color:#843b20;font-size:14px}
 </style>
 </head>
-
 <body>
 <header>
 <h2>🌾 JOHAR KISAN</h2>
 <p>मेरी बुकिंग</p>
 </header>
-
 <main>
 <div class="card">
 <button onclick="location.href='./dashboard.html'">← Dashboard</button>
 <h2>📋 Booking Dashboard</h2>
-
 <h3>Booking प्रकार</h3>
 <div class="tabs">
 <button data-view="all" onclick="loadBookings('all')">सभी</button>
@@ -53,7 +49,6 @@ button:disabled{opacity:.6;cursor:not-allowed}
 <button data-view="owner" onclick="loadBookings('owner')">मेरी मशीन की Booking</button>
 <button class="secondary" onclick="loadBookings(currentView)">↻ Refresh</button>
 </div>
-
 <h3>Booking Status Filter</h3>
 <div class="tabs">
 <button data-view="pending" onclick="loadBookings('pending')">⏳ Pending</button>
@@ -61,7 +56,6 @@ button:disabled{opacity:.6;cursor:not-allowed}
 <button data-view="completed" onclick="loadBookings('completed')">✔ Completed</button>
 <button data-view="cancelled" onclick="loadBookings('cancelled')">❌ Cancelled</button>
 </div>
-
 <p id="message">बुकिंग लोड हो रही हैं...</p>
 <div id="bookingList"></div>
 </div>
@@ -72,7 +66,6 @@ import {supabase} from "./supabase-config.js";
 
 const message=document.getElementById("message");
 const list=document.getElementById("bookingList");
-
 let user=null;
 let currentView="all";
 let loading=false;
@@ -110,122 +103,87 @@ function addCallButton(parent,label,phone){
 }
 
 async function showContacts(container,b){
- const {data,error}=await supabase.rpc(
-  "get_booking_contacts",
-  {p_booking_id:b.id}
- );
-
- if(error){
-  addText(container,"Contact लोड नहीं हो पाया।");
-  return;
- }
-
+ const {data,error}=await supabase.rpc("get_booking_contacts",{p_booking_id:b.id});
+ if(error){addText(container,"Contact लोड नहीं हो पाया।");return;}
  const result=Array.isArray(data)?data[0]:data;
- if(!result){
-  addText(container,"दोनों की सहमति मिलने पर मोबाइल नंबर यहाँ दिखाई देंगे।");
-  return;
- }
-
- if(result.customer_phone){
-  addCallButton(container,"Customer को Call करें",result.customer_phone);
- }else{
-  addText(container,"Customer ने Profile में मोबाइल नंबर नहीं जोड़ा है।");
- }
-
- if(result.owner_phone){
-  addCallButton(container,"Owner को Call करें",result.owner_phone);
- }else{
-  addText(container,"Owner ने Profile में मोबाइल नंबर नहीं जोड़ा है।");
- }
+ if(!result){addText(container,"दोनों की सहमति मिलने पर मोबाइल नंबर यहाँ दिखाई देंगे।");return;}
+ if(result.customer_phone)addCallButton(container,"Customer को Call करें",result.customer_phone);
+ else addText(container,"Customer ने Profile में मोबाइल नंबर नहीं जोड़ा है।");
+ if(result.owner_phone)addCallButton(container,"Owner को Call करें",result.owner_phone);
+ else addText(container,"Owner ने Profile में मोबाइल नंबर नहीं जोड़ा है।");
 }
 
 async function changeConsent(bookingId,consent){
  message.textContent="Contact सहमति अपडेट हो रही है...";
-
- const {data,error}=await supabase.rpc(
-  "set_booking_contact_consent",
-  {p_booking_id:bookingId,p_consent:consent}
- );
-
- if(error){
-  message.textContent="सहमति अपडेट नहीं हुई: "+error.message;
-  return;
- }
-
- if(data!==true){
-  message.textContent="सहमति अपडेट नहीं हुई। Booking Status जाँचें।";
-  return;
- }
-
+ const {data,error}=await supabase.rpc("set_booking_contact_consent",{p_booking_id:bookingId,p_consent:consent});
+ if(error){message.textContent="सहमति अपडेट नहीं हुई: "+error.message;return;}
+ if(data!==true){message.textContent="सहमति अपडेट नहीं हुई। Booking Status जाँचें।";return;}
  message.textContent="आपकी Contact सहमति अपडेट हो गई।";
  await loadBookings(currentView);
 }
 
 async function updateStatus(id,status,oldStatus){
  if(!user)return;
-
- const question=status==="completed"
-  ?"क्या मशीन का काम पूरा हो गया है?"
-  :"क्या आप इस Booking का Status बदलना चाहते हैं?";
-
+ const question=status==="completed"?"क्या मशीन का काम पूरा हो गया है?":"क्या आप इस Booking का Status बदलना चाहते हैं?";
  if(!confirm(question))return;
-
  message.textContent="Status अपडेट हो रहा है...";
+ const {data,error}=await supabase.from("bookings").update({status})
+  .eq("id",id).eq("owner_id",user.id).eq("status",oldStatus).select("id");
+ if(error){message.textContent="अपडेट नहीं हुआ: "+error.message;return;}
+ if(!data||data.length===0){message.textContent="Booking अपडेट नहीं हुई। Permission जाँचें।";return;}
+ await loadBookings(currentView);
+}
+
+// Customer अपनी Pending Booking Cancel कर सकता है
+async function cancelCustomerBooking(id){
+ if(!user)return;
+ const confirmed=confirm("क्या आप सच में यह Booking Cancel करना चाहते हैं?");
+ if(!confirmed)return;
+
+ message.textContent="आपकी Booking Cancel हो रही है...";
 
  const {data,error}=await supabase
   .from("bookings")
-  .update({status})
+  .update({status:"cancelled"})
   .eq("id",id)
-  .eq("owner_id",user.id)
-  .eq("status",oldStatus)
+  .eq("customer_id",user.id)
+  .eq("status","pending")
   .select("id");
 
  if(error){
-  message.textContent="अपडेट नहीं हुआ: "+error.message;
+  message.textContent="Booking Cancel नहीं हुई: "+error.message;
   return;
  }
 
  if(!data||data.length===0){
-  message.textContent="Booking अपडेट नहीं हुई। Permission जाँचें।";
+  message.textContent="Booking Cancel नहीं हुई। हो सकता है Owner ने पहले ही Accept कर लिया हो।";
+  await loadBookings(currentView);
   return;
  }
 
+ message.textContent="✅ आपकी Booking Cancel हो गई।";
  await loadBookings(currentView);
 }
 
 function startRealtime(){
  if(bookingChannel||!user)return;
-
- bookingChannel=supabase
-  .channel("johar-kisan-booking-notifications")
-  .on("postgres_changes",{
-   event:"*",
-   schema:"public",
-   table:"bookings"
-  },payload=>{
+ bookingChannel=supabase.channel("johar-kisan-booking-notifications")
+  .on("postgres_changes",{event:"*",schema:"public",table:"bookings"},payload=>{
    const b=payload.new||payload.old;
    if(!b||!user)return;
    if(b.customer_id!==user.id&&b.owner_id!==user.id)return;
-
    if(payload.eventType==="INSERT"){
-    showNotification(b.owner_id===user.id
-     ?"🔔 आपकी मशीन के लिए नई Booking आई है।"
-     :"✅ आपकी Booking सफलतापूर्वक भेज दी गई है।");
+    showNotification(b.owner_id===user.id?"🔔 आपकी मशीन के लिए नई Booking आई है।":"✅ आपकी Booking सफलतापूर्वक भेज दी गई है।");
    }
-
    if(payload.eventType==="UPDATE"){
-    showNotification("🔔 Booking का नया Status: "+
-     (statusHindi[b.status]||b.status||"-"));
+    showNotification("🔔 Booking का नया Status: "+(statusHindi[b.status]||b.status||"-"));
    }
-
    loadBookings(currentView);
-  })
-  .subscribe();
+  }).subscribe();
 }
 
 function showNotification(text){
  let box=document.getElementById("bookingNotice");
-
  if(!box){
   box=document.createElement("div");
   box.id="bookingNotice";
@@ -234,28 +192,21 @@ function showNotification(text){
   box.style.border="1px solid #176b35";
   document.querySelector("main .card").insertBefore(box,message);
  }
-
  box.textContent=text;
 }
 
-// Customer की Review History लोड करें
 async function loadReview(bookingId){
- const {data,error}=await supabase
-  .from("reviews")
+ const {data,error}=await supabase.from("reviews")
   .select("rating,review_text,created_at,is_hidden")
-  .eq("booking_id",bookingId)
-  .maybeSingle();
-
+  .eq("booking_id",bookingId).maybeSingle();
  if(error)throw error;
  return data;
 }
 
 async function addReviewSection(card,b){
  if(b.status!=="completed"||b.customer_id!==user.id)return;
-
  const section=document.createElement("div");
  section.className="review";
-
  const heading=document.createElement("h3");
  heading.textContent="⭐ Rating & Review";
  section.appendChild(heading);
@@ -263,117 +214,75 @@ async function addReviewSection(card,b){
 
  try{
   const existing=await loadReview(b.id);
-
   if(existing){
    const result=document.createElement("div");
    result.className="review-result";
-
    const stars=document.createElement("div");
    stars.className="stars";
    stars.textContent="★".repeat(existing.rating)+"☆".repeat(5-existing.rating);
    result.appendChild(stars);
-
    addText(result,"आपकी Rating: "+existing.rating+"/5");
-
-   if(existing.review_text){
-    addText(result,"आपका Review: "+existing.review_text);
-   }
-
+   if(existing.review_text)addText(result,"आपका Review: "+existing.review_text);
    addText(result,"Review जमा हो चुका है। धन्यवाद!");
-
    if(existing.is_hidden){
     const hidden=document.createElement("div");
     hidden.className="hidden-review";
     hidden.textContent="⚠️ Admin ने इस Review को सार्वजनिक रूप से Hide किया है। यह मशीन की Public Rating में शामिल नहीं है।";
     result.appendChild(hidden);
    }
-
    section.appendChild(result);
    return;
   }
 
   addText(section,"काम पूरा होने के बाद अपना अनुभव और Rating दें।");
-
   const ratingLabel=document.createElement("label");
   ratingLabel.textContent="अपनी Rating चुनें";
   section.appendChild(ratingLabel);
-
   const rating=document.createElement("select");
-
-  [
-   ["5","⭐⭐⭐⭐⭐ - बहुत अच्छा"],
-   ["4","⭐⭐⭐⭐ - अच्छा"],
-   ["3","⭐⭐⭐ - ठीक"],
-   ["2","⭐⭐ - सुधार की जरूरत"],
-   ["1","⭐ - खराब अनुभव"]
-  ].forEach(([value,label])=>{
+  [["5","⭐⭐⭐⭐⭐ - बहुत अच्छा"],["4","⭐⭐⭐⭐ - अच्छा"],["3","⭐⭐⭐ - ठीक"],["2","⭐⭐ - सुधार की जरूरत"],["1","⭐ - खराब अनुभव"]].forEach(([value,label])=>{
    const option=document.createElement("option");
-   option.value=value;
-   option.textContent=label;
-   rating.appendChild(option);
+   option.value=value;option.textContent=label;rating.appendChild(option);
   });
-
   section.appendChild(rating);
-
   const reviewLabel=document.createElement("label");
   reviewLabel.textContent="अपना अनुभव लिखें (वैकल्पिक)";
   section.appendChild(reviewLabel);
-
   const reviewText=document.createElement("textarea");
   reviewText.maxLength=1000;
   reviewText.placeholder="मशीन या सेवा का अनुभव लिखें...";
   section.appendChild(reviewText);
-
   const submit=document.createElement("button");
   submit.textContent="⭐ Review Submit करें";
   section.appendChild(submit);
 
   submit.onclick=async()=>{
    if(!confirm("क्या आप यह Rating और Review जमा करना चाहते हैं?"))return;
-
-   submit.disabled=true;
-   submit.textContent="जमा हो रहा है...";
-
+   submit.disabled=true;submit.textContent="जमा हो रहा है...";
    try{
-    const {error}=await supabase
-     .from("reviews")
-     .insert({
-      booking_id:b.id,
-      customer_id:user.id,
-      owner_id:b.owner_id,
-      machine_id:b.machine_id,
-      rating:Number(rating.value),
-      review_text:reviewText.value.trim()
-     });
-
+    const {error}=await supabase.from("reviews").insert({
+     booking_id:b.id,customer_id:user.id,owner_id:b.owner_id,
+     machine_id:b.machine_id,rating:Number(rating.value),
+     review_text:reviewText.value.trim()
+    });
     if(error){
-     if(error.code==="23505"){
-      throw new Error("इस Booking पर Review पहले ही जमा हो चुका है।");
-     }
+     if(error.code==="23505")throw new Error("इस Booking पर Review पहले ही जमा हो चुका है।");
      throw error;
     }
-
     section.innerHTML="";
     const success=document.createElement("div");
     success.className="review-result";
     success.textContent="✅ आपका Review सफलतापूर्वक जमा हो गया। धन्यवाद!";
     section.appendChild(success);
-
    }catch(error){
     alert("Review जमा नहीं हुआ: "+error.message);
-    submit.disabled=false;
-    submit.textContent="⭐ Review Submit करें";
+    submit.disabled=false;submit.textContent="⭐ Review Submit करें";
    }
   };
-
- }catch(error){
-  addText(section,"Review लोड नहीं हो पाया: "+error.message);
- }
+ }catch(error){addText(section,"Review लोड नहीं हो पाया: "+error.message);}
 }
 
 async function loadBookings(view="all"){
  if(loading)return;
-
  loading=true;
  currentView=view;
  updateActiveButton();
@@ -383,12 +292,7 @@ async function loadBookings(view="all"){
  try{
   const {data:authData,error:authError}=await supabase.auth.getUser();
   if(authError)throw authError;
-
-  if(!authData.user){
-   location.href="./auth.html";
-   return;
-  }
-
+  if(!authData.user){location.href="./auth.html";return;}
   user=authData.user;
   startRealtime();
 
@@ -397,77 +301,61 @@ async function loadBookings(view="all"){
    customer_id,owner_id,booking_date,
    service_date,service_address,customer_note,
    owner_note,status,created_at,
-   customer_contact_consent,
-   owner_contact_consent
+   customer_contact_consent,owner_contact_consent
   `).order("created_at",{ascending:false});
 
-  if(view==="customer"){
-   query=query.eq("customer_id",user.id);
-  }else if(view==="owner"){
-   query=query.eq("owner_id",user.id);
-  }else{
-   query=query.or(
-    `customer_id.eq.${user.id},owner_id.eq.${user.id}`
-   );
-  }
+  if(view==="customer")query=query.eq("customer_id",user.id);
+  else if(view==="owner")query=query.eq("owner_id",user.id);
+  else query=query.or(`customer_id.eq.${user.id},owner_id.eq.${user.id}`);
 
-  if(["pending","accepted","completed","cancelled"].includes(view)){
-   query=query.eq("status",view);
-  }
+  if(["pending","accepted","completed","cancelled"].includes(view))query=query.eq("status",view);
 
   const {data,error}=await query;
   if(error)throw error;
-
-  if(!data||data.length===0){
-   message.textContent="इस Filter में कोई Booking उपलब्ध नहीं है।";
-   return;
-  }
-
+  if(!data||data.length===0){message.textContent="इस Filter में कोई Booking उपलब्ध नहीं है।";return;}
   message.textContent="कुल Booking: "+data.length;
 
   for(const b of data){
    const card=document.createElement("div");
    card.className="booking";
-
    const heading=document.createElement("h3");
    heading.textContent="🚜 "+(b.machine_name_snapshot||"मशीन Booking");
    card.appendChild(heading);
 
-   const role=b.customer_id===user.id
-    ?"आपने यह Booking भेजी है"
-    :"यह आपकी मशीन की Booking है";
-
-   const details=[
-    role,
-    "Booking ID: "+b.id,
-    "मशीन ID: "+(b.machine_id||"-"),
+   const isCustomer=b.customer_id===user.id;
+   const role=isCustomer?"आपने यह Booking भेजी है":"यह आपकी मशीन की Booking है";
+   [
+    role,"Booking ID: "+b.id,"मशीन ID: "+(b.machine_id||"-"),
     "काम की तारीख: "+(b.service_date||"-"),
     "काम का स्थान: "+(b.service_address||"-"),
     "Booking तारीख: "+(b.booking_date||"-"),
     "स्थिति: "+(statusHindi[b.status]||b.status||"-"),
     "किसान का संदेश: "+(b.customer_note||"-"),
     "Owner का संदेश: "+(b.owner_note||"-")
-   ];
+   ].forEach(v=>addText(card,v));
 
-   details.forEach(v=>addText(card,v));
+   const actions=document.createElement("div");
+   actions.className="actions";
 
-   if(b.owner_id===user.id){
-    const actions=document.createElement("div");
-    actions.className="actions";
+   if(isCustomer&&b.status==="pending"){
+    const cancel=document.createElement("button");
+    cancel.textContent="❌ अपनी Booking Cancel करें";
+    cancel.className="danger";
+    cancel.onclick=()=>cancelCustomerBooking(b.id);
+    actions.appendChild(cancel);
+   }
 
+   if(!isCustomer&&b.owner_id===user.id){
     if(b.status==="pending"){
      const accept=document.createElement("button");
      accept.textContent="✅ Accept";
      accept.onclick=()=>updateStatus(b.id,"accepted","pending");
-
      const cancel=document.createElement("button");
      cancel.textContent="❌ Cancel";
      cancel.className="danger";
      cancel.onclick=()=>updateStatus(b.id,"cancelled","pending");
-
      actions.append(accept,cancel);
     }
-
     if(b.status==="accepted"){
      const complete=document.createElement("button");
      complete.textContent="✔ Mark as Completed";
@@ -475,61 +363,39 @@ async function loadBookings(view="all"){
      complete.onclick=()=>updateStatus(b.id,"completed","accepted");
      actions.appendChild(complete);
     }
-
-    if(actions.children.length)card.appendChild(actions);
    }
+
+   if(actions.children.length)card.appendChild(actions);
 
    if(b.status==="accepted"||b.status==="completed"){
     const contact=document.createElement("div");
     contact.className="contact";
-
     const title=document.createElement("strong");
     title.textContent="📞 Booking Contact";
     contact.appendChild(title);
-
-    const myConsent=b.customer_id===user.id
-     ?b.customer_contact_consent
-     :b.owner_contact_consent;
-
-    const otherConsent=b.customer_id===user.id
-     ?b.owner_contact_consent
-     :b.customer_contact_consent;
-
+    const myConsent=isCustomer?b.customer_contact_consent:b.owner_contact_consent;
+    const otherConsent=isCustomer?b.owner_contact_consent:b.customer_contact_consent;
     addText(contact,"आपकी सहमति: "+(myConsent?"दी गई है":"अभी नहीं दी गई है"));
     addText(contact,"दूसरे व्यक्ति की सहमति: "+(otherConsent?"दी गई है":"अभी बाकी है"));
-
     const consentButton=document.createElement("button");
-    consentButton.textContent=myConsent
-     ?"सहमति वापस लें"
-     :"मैं अपना नंबर साझा करने की सहमति देता/देती हूँ";
-
+    consentButton.textContent=myConsent?"सहमति वापस लें":"मैं अपना नंबर साझा करने की सहमति देता/देती हूँ";
     consentButton.className=myConsent?"secondary":"";
     consentButton.onclick=()=>changeConsent(b.id,!myConsent);
     contact.appendChild(consentButton);
-
-    if(b.customer_contact_consent&&b.owner_contact_consent){
-     await showContacts(contact,b);
-    }else{
-     addText(contact,"दोनों की सहमति होने पर ही मोबाइल नंबर दिखेंगे।");
-    }
-
+    if(b.customer_contact_consent&&b.owner_contact_consent)await showContacts(contact,b);
+    else addText(contact,"दोनों की सहमति होने पर ही मोबाइल नंबर दिखेंगे।");
     card.appendChild(contact);
    }
 
-   if(b.status==="completed"&&b.customer_id===user.id){
-    await addReviewSection(card,b);
-   }
-
+   if(b.status==="completed"&&isCustomer)await addReviewSection(card,b);
    list.appendChild(card);
   }
-
  }catch(error){
   message.textContent="त्रुटि: "+error.message;
  }finally{
   loading=false;
  }
 }
-
 loadBookings();
 </script>
 </body>
