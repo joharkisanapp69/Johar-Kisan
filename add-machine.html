@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="hi">
 <head>
@@ -23,12 +24,14 @@ border:0;border-radius:9px;background:#176b35;
 color:white;font-size:16px
 }
 button:disabled{opacity:.6}
+.gps-btn{background:#245f9e}
 #message{margin-top:14px;overflow-wrap:anywhere}
 #preview{
 width:100%;max-height:220px;object-fit:contain;
 margin-top:12px;border-radius:10px;display:none
 }
-.hint{font-size:13px;color:#607360}
+.hint{font-size:13px;color:#607360;line-height:1.5}
+#gpsStatus{font-size:14px;color:#176b35;margin-top:9px}
 </style>
 </head>
 
@@ -84,6 +87,21 @@ margin-top:12px;border-radius:10px;display:none
 <label>मोहल्ला / क्षेत्र</label>
 <input id="locality" placeholder="क्षेत्र का नाम">
 
+<hr style="margin-top:20px;border:0;border-top:1px solid #ddd">
+
+<h3>📍 Machine GPS Location</h3>
+
+<p class="hint">
+मशीन के काम करने वाले क्षेत्र की लोकेशन दें।
+अपना घर का सटीक पता सार्वजनिक लोकेशन के रूप में न दें।
+</p>
+
+<button type="button" class="gps-btn" id="gpsBtn">
+📍 मेरी लोकेशन प्राप्त करें
+</button>
+
+<p id="gpsStatus">GPS Location अभी प्राप्त नहीं हुई है।</p>
+
 <label>मशीन की फोटो Upload करें</label>
 <input id="photo" type="file"
 accept="image/jpeg,image/png,image/webp">
@@ -110,15 +128,20 @@ const saveBtn=document.getElementById("saveBtn");
 const photoInput=document.getElementById("photo");
 const preview=document.getElementById("preview");
 const categorySelect=document.getElementById("category");
+const gpsBtn=document.getElementById("gpsBtn");
+const gpsStatus=document.getElementById("gpsStatus");
 
 let selectedPhoto=null;
 let categoriesLoaded=false;
+
+let machineLatitude=null;
+let machineLongitude=null;
 
 async function loadCategories(){
 
  categorySelect.disabled=true;
  categorySelect.innerHTML=
-  '<option value="">Categories लोड हो रही हैं...</option>';
+ '<option value="">Categories लोड हो रही हैं...</option>';
 
  const {data,error}=await supabase
   .from("categories")
@@ -128,17 +151,17 @@ async function loadCategories(){
 
  if(error){
   categorySelect.innerHTML=
-   '<option value="">Categories लोड नहीं हुईं</option>';
+  '<option value="">Categories लोड नहीं हुईं</option>';
   message.textContent="Category Error: "+error.message;
   return;
  }
 
  categorySelect.innerHTML=
-  '<option value="">श्रेणी चुनें</option>';
+ '<option value="">श्रेणी चुनें</option>';
 
  if(!data || data.length===0){
   categorySelect.innerHTML=
-   '<option value="">अभी कोई Active Category नहीं है</option>';
+  '<option value="">अभी कोई Active Category नहीं है</option>';
   message.textContent="Admin से Categories जोड़ने का अनुरोध करें।";
   categoriesLoaded=false;
   return;
@@ -156,6 +179,63 @@ async function loadCategories(){
  saveBtn.disabled=false;
  message.textContent="Categories सफलतापूर्वक लोड हो गईं।";
 }
+
+
+// GPS LOCATION
+gpsBtn.addEventListener("click",()=>{
+
+ if(!navigator.geolocation){
+  gpsStatus.textContent="इस Browser में GPS उपलब्ध नहीं है।";
+  return;
+ }
+
+ gpsBtn.disabled=true;
+ gpsBtn.textContent="लोकेशन प्राप्त हो रही है...";
+ gpsStatus.textContent="कृपया Location Permission Allow करें।";
+
+ navigator.geolocation.getCurrentPosition(
+
+  (position)=>{
+
+   machineLatitude=position.coords.latitude;
+   machineLongitude=position.coords.longitude;
+
+   gpsStatus.textContent=
+    "✅ GPS Location प्राप्त हो गई। अनुमानित Accuracy: "+
+    Math.round(position.coords.accuracy)+" मीटर।";
+
+   gpsBtn.textContent="लोकेशन फिर से प्राप्त करें";
+   gpsBtn.disabled=false;
+  },
+
+  (error)=>{
+
+   machineLatitude=null;
+   machineLongitude=null;
+
+   let errorMessage="GPS Location प्राप्त नहीं हुई।";
+
+   if(error.code===1){
+    errorMessage="Location Permission Allow करें।";
+   }else if(error.code===2){
+    errorMessage="GPS Location उपलब्ध नहीं है।";
+   }else if(error.code===3){
+    errorMessage="GPS में समय लग रहा है। फिर कोशिश करें।";
+   }
+
+   gpsStatus.textContent="⚠️ "+errorMessage;
+   gpsBtn.textContent="📍 फिर से लोकेशन प्राप्त करें";
+   gpsBtn.disabled=false;
+  },
+
+  {
+   enableHighAccuracy:false,
+   timeout:20000,
+   maximumAge:60000
+  }
+ );
+});
+
 
 photoInput.addEventListener("change",()=>{
  selectedPhoto=photoInput.files[0]||null;
@@ -184,6 +264,7 @@ photoInput.addEventListener("change",()=>{
  message.textContent="फोटो चुन ली गई है।";
 });
 
+
 form.addEventListener("submit",async(e)=>{
 
  e.preventDefault();
@@ -194,6 +275,8 @@ form.addEventListener("submit",async(e)=>{
  }
 
  saveBtn.disabled=true;
+ gpsBtn.disabled=true;
+
  let uploadedPath=null;
 
  try{
@@ -205,8 +288,6 @@ form.addEventListener("submit",async(e)=>{
   if(authError)throw authError;
   if(!data.user)throw new Error("पहले Login करें।");
 
-  // Category को फिर से जाँचें ताकि Inactive
-  // Category चुनकर मशीन सेव न हो सके।
   const {data:validCategory,error:categoryError}=await supabase
    .from("categories")
    .select("id")
@@ -257,21 +338,30 @@ form.addEventListener("submit",async(e)=>{
    village:document.getElementById("village").value.trim(),
    locality:document.getElementById("locality").value.trim(),
    machine_photo_url:photoUrl,
+   latitude:machineLatitude,
+   longitude:machineLongitude,
    is_available:true,
    is_active:false,
    availability_status:"available"
   };
 
-  const {error}=await supabase.from("machines").insert(row);
+  const {error}=await supabase
+   .from("machines")
+   .insert(row);
 
   if(error)throw error;
 
   message.textContent=
-   "मशीन सफलतापूर्वक सेव हो गई। Admin की जाँच के बाद लिस्टिंग दिखाई जाएगी।";
+   "✅ मशीन सफलतापूर्वक सेव हो गई। Admin की जाँच के बाद लिस्टिंग दिखाई जाएगी।";
 
   form.reset();
   selectedPhoto=null;
   preview.style.display="none";
+
+  machineLatitude=null;
+  machineLongitude=null;
+
+  gpsStatus.textContent="GPS Location अभी प्राप्त नहीं हुई है।";
 
  }catch(error){
 
@@ -284,7 +374,9 @@ form.addEventListener("submit",async(e)=>{
   message.textContent="त्रुटि: "+error.message;
 
  }finally{
+
   saveBtn.disabled=!categoriesLoaded;
+  gpsBtn.disabled=false;
  }
 
 });
@@ -294,4 +386,3 @@ loadCategories();
 
 </body>
 </html>
-
