@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JOHAR KISAN - Admin</title>
-
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial;background:#edf5ed;color:#17351e}
@@ -15,84 +14,60 @@ button{padding:11px;border:0;border-radius:8px;background:#176b35;color:white;ma
 button:disabled{opacity:.6}
 .reject{background:#a52d2d}
 img{width:100%;max-height:220px;object-fit:cover;border-radius:9px}
-textarea{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;min-height:75px}
+textarea,input{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px}
+textarea{min-height:75px}
 #message{overflow-wrap:anywhere}
 .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:15px}
 .stat{background:#f1f7f0;border:1px solid #dce8dc;padding:14px;border-radius:10px}
 .stat strong{display:block;font-size:25px;color:#176b35;margin-top:6px}
-.small{font-size:13px;color:#647664}
-.status{font-weight:bold}
-.admin-link{
- width:100%;
- padding:14px;
- margin:7px 0;
- font-size:15px;
- text-align:left;
-}
+.small{font-size:13px;color:#647664;overflow-wrap:anywhere}
+.admin-link{width:100%;padding:14px;margin:7px 0;font-size:15px;text-align:left}
+.filters{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}
+.filters button.active{background:#0b4320;outline:2px solid #8dbd91}
+.machine-card{border:1px solid #dce8dc;border-radius:10px;padding:13px;margin:13px 0}
+.machine-card h3{color:#176b35;overflow-wrap:anywhere}
 </style>
 </head>
-
 <body>
-
 <header>
 <h2>🌾 JOHAR KISAN</h2>
 <p>Admin Dashboard</p>
 </header>
-
 <main>
-
 <div class="card">
 <h3>🛡️ Admin Controls</h3>
-
-<button class="admin-link"
-onclick="location.href='./dashboard.html'">
-🏠 Main Dashboard
-</button>
-
-<button class="admin-link"
-onclick="location.href='./admin-categories.html'">
-📂 Categories Management
-</button>
-
-<button class="admin-link"
-onclick="location.href='./admin-users.html'">
-👥 User Management
-</button>
-
-<button class="admin-link"
-onclick="location.href='./admin-support.html'">
-🎫 Admin Support
-</button>
-
-<button class="admin-link"
-onclick="location.href='./admin-reviews.html'">
-⭐ Reviews Management
-</button>
-
+<button class="admin-link" onclick="location.href='./dashboard.html'">🏠 Main Dashboard</button>
+<button class="admin-link" onclick="location.href='./admin-categories.html'">📂 Categories Management</button>
+<button class="admin-link" onclick="location.href='./admin-users.html'">👥 User Management</button>
+<button class="admin-link" onclick="location.href='./admin-support.html'">🎫 Admin Support</button>
+<button class="admin-link" onclick="location.href='./admin-reviews.html'">⭐ Reviews Management</button>
 </div>
 
 <div class="card">
 <h3>🛡️ Machine Approval Panel</h3>
-
 <button id="refresh">↻ Refresh</button>
-
 <div class="stats">
- <div class="stat">कुल मशीनें<strong id="totalCount">0</strong></div>
- <div class="stat">Pending<strong id="pendingCount">0</strong></div>
- <div class="stat">Approved<strong id="approvedCount">0</strong></div>
- <div class="stat">Rejected<strong id="rejectedCount">0</strong></div>
- <div class="stat">Active<strong id="activeCount">0</strong></div>
- <div class="stat">Inactive<strong id="inactiveCount">0</strong></div>
+<div class="stat">कुल मशीनें<strong id="totalCount">0</strong></div>
+<div class="stat">Pending<strong id="pendingCount">0</strong></div>
+<div class="stat">Approved<strong id="approvedCount">0</strong></div>
+<div class="stat">Rejected<strong id="rejectedCount">0</strong></div>
+<div class="stat">Active<strong id="activeCount">0</strong></div>
+<div class="stat">Inactive<strong id="inactiveCount">0</strong></div>
 </div>
-
 <p id="message">लोड हो रहा है...</p>
 </div>
 
 <div class="card">
 <h3>📋 Machine Listings</h3>
+<input id="search" type="search" placeholder="🔍 मशीन का नाम खोजें...">
+<div class="filters">
+<button class="active" data-filter="all">सभी</button>
+<button data-filter="pending">⏳ Pending</button>
+<button data-filter="approved">✅ Approved</button>
+<button data-filter="rejected">❌ Rejected</button>
+</div>
 <div id="machineList"></div>
 </div>
-
 </main>
 
 <script type="module">
@@ -100,6 +75,94 @@ import {supabase} from "./supabase-config.js";
 
 const message=document.getElementById("message");
 const list=document.getElementById("machineList");
+const search=document.getElementById("search");
+let allMachines=[];
+let currentFilter="all";
+let isAdmin=false;
+
+function renderMachines(){
+ list.innerHTML="";
+ const term=search.value.trim().toLowerCase();
+
+ const filtered=allMachines.filter(m=>{
+  const status=m.approval_status||"pending";
+  const matchesStatus=currentFilter==="all"||status===currentFilter;
+  const matchesSearch=(m.name||"").toLowerCase().includes(term);
+  return matchesStatus&&matchesSearch;
+ });
+
+ if(!filtered.length){
+  list.textContent="इस Filter में कोई मशीन नहीं मिली।";
+  return;
+ }
+
+ filtered.forEach(machine=>{
+  const card=document.createElement("div");
+  card.className="machine-card";
+
+  const title=document.createElement("h3");
+  title.textContent="🚜 "+machine.name;
+  card.appendChild(title);
+
+  if(machine.machine_photo_url){
+   const img=document.createElement("img");
+   img.src=machine.machine_photo_url;
+   img.alt="Machine photo";
+   img.onerror=()=>img.style.display="none";
+   card.appendChild(img);
+  }
+
+  [
+   "श्रेणी: "+(machine.category||"-"),
+   "किराया: ₹"+(machine.price??"-")+" / "+(machine.price_unit||"-"),
+   "Owner ID: "+machine.owner_id,
+   "गाँव: "+(machine.village||"-"),
+   "तहसील: "+(machine.tehsil||"-"),
+   "जिला: "+(machine.district||"-"),
+   "राज्य: "+(machine.state||"-"),
+   "Approval: "+(machine.approval_status||"pending"),
+   "Listing: "+(machine.is_active?"Active":"Inactive")
+  ].forEach(v=>{
+   const p=document.createElement("p");
+   p.className="small";
+   p.textContent=v;
+   card.appendChild(p);
+  });
+
+  if(machine.approval_status==="rejected"&&machine.rejection_reason){
+   const reason=document.createElement("p");
+   reason.className="small";
+   reason.textContent="Reject कारण: "+machine.rejection_reason;
+   card.appendChild(reason);
+  }
+
+  if(machine.approval_status==="pending"||machine.approval_status==="rejected"){
+   const reason=document.createElement("textarea");
+   reason.placeholder="Reject करने का कारण लिखें...";
+   if(machine.rejection_reason)reason.value=machine.rejection_reason;
+   card.appendChild(reason);
+
+   const approve=document.createElement("button");
+   approve.textContent="✓ Approve";
+   approve.onclick=()=>updateStatus(machine,"approved","");
+   card.appendChild(approve);
+
+   const reject=document.createElement("button");
+   reject.textContent="✕ Reject";
+   reject.className="reject";
+   reject.onclick=()=>{
+    if(!reason.value.trim()){
+     alert("Reject करने का कारण लिखें।");
+     return;
+    }
+    updateStatus(machine,"rejected",reason.value.trim());
+   };
+   card.appendChild(reject);
+  }
+
+  list.appendChild(card);
+ });
+}
 
 async function loadMachines(){
  list.innerHTML="";
@@ -111,110 +174,36 @@ async function loadMachines(){
   if(!authData.user)throw new Error("पहले Login करें।");
 
   const {data:profile,error:profileError}=await supabase
-   .from("profiles")
-   .select("is_admin")
-   .eq("id",authData.user.id)
-   .single();
+   .from("profiles").select("is_admin")
+   .eq("id",authData.user.id).single();
 
   if(profileError)throw profileError;
   if(!profile?.is_admin)throw new Error("आपको Admin अनुमति नहीं है।");
 
-  const {data,error}=await supabase
-   .from("machines")
-   .select("*")
-   .order("created_at",{ascending:false});
+  isAdmin=true;
+
+  const {data,error}=await supabase.from("machines")
+   .select("*").order("created_at",{ascending:false});
 
   if(error)throw error;
 
-  const machines=data||[];
+  allMachines=data||[];
 
-  const pending=machines.filter(m=>m.approval_status==="pending");
-  const approved=machines.filter(m=>m.approval_status==="approved");
-  const rejected=machines.filter(m=>m.approval_status==="rejected");
-  const active=machines.filter(m=>m.is_active===true);
-  const inactive=machines.filter(m=>m.is_active!==true);
+  const pending=allMachines.filter(m=>m.approval_status==="pending");
+  const approved=allMachines.filter(m=>m.approval_status==="approved");
+  const rejected=allMachines.filter(m=>m.approval_status==="rejected");
+  const active=allMachines.filter(m=>m.is_active===true);
+  const inactive=allMachines.filter(m=>m.is_active!==true);
 
-  document.getElementById("totalCount").textContent=machines.length;
+  document.getElementById("totalCount").textContent=allMachines.length;
   document.getElementById("pendingCount").textContent=pending.length;
   document.getElementById("approvedCount").textContent=approved.length;
   document.getElementById("rejectedCount").textContent=rejected.length;
   document.getElementById("activeCount").textContent=active.length;
   document.getElementById("inactiveCount").textContent=inactive.length;
 
-  message.textContent="सभी मशीनों का डेटा अपडेट हो गया।";
-
-  if(machines.length===0){
-   list.textContent="अभी कोई मशीन उपलब्ध नहीं है।";
-   return;
-  }
-
-  machines.forEach(machine=>{
-   const card=document.createElement("div");
-   card.className="card";
-
-   const title=document.createElement("h3");
-   title.textContent="🚜 "+machine.name;
-   card.appendChild(title);
-
-   if(machine.machine_photo_url){
-    const img=document.createElement("img");
-    img.src=machine.machine_photo_url;
-    img.alt="Machine photo";
-    img.onerror=()=>img.style.display="none";
-    card.appendChild(img);
-   }
-
-   const details=[
-    "श्रेणी: "+(machine.category||"-"),
-    "किराया: ₹"+(machine.price??"-")+" / "+(machine.price_unit||"-"),
-    "Owner ID: "+machine.owner_id,
-    "गाँव: "+(machine.village||"-"),
-    "तहसील: "+(machine.tehsil||"-"),
-    "जिला: "+(machine.district||"-"),
-    "राज्य: "+(machine.state||"-"),
-    "Approval: "+(machine.approval_status||"pending"),
-    "Listing: "+(machine.is_active?"Active":"Inactive")
-   ];
-
-   details.forEach(v=>{
-    const p=document.createElement("p");
-    p.className="small";
-    p.textContent=v;
-    card.appendChild(p);
-   });
-
-   if(machine.approval_status==="rejected" && machine.rejection_reason){
-    const reason=document.createElement("p");
-    reason.className="small";
-    reason.textContent="Reject कारण: "+machine.rejection_reason;
-    card.appendChild(reason);
-   }
-
-   if(machine.approval_status==="pending"){
-    const reason=document.createElement("textarea");
-    reason.placeholder="Reject करने का कारण (केवल Reject के लिए)";
-    card.appendChild(reason);
-
-    const approve=document.createElement("button");
-    approve.textContent="✓ Approve";
-    approve.onclick=()=>updateStatus(machine,"approved","");
-    card.appendChild(approve);
-
-    const reject=document.createElement("button");
-    reject.textContent="✕ Reject";
-    reject.className="reject";
-    reject.onclick=()=>{
-     if(!reason.value.trim()){
-      alert("Reject करने का कारण लिखें।");
-      return;
-     }
-     updateStatus(machine,"rejected",reason.value.trim());
-    };
-    card.appendChild(reject);
-   }
-
-   list.appendChild(card);
-  });
+  message.textContent="कुल "+allMachines.length+" मशीनें मिलीं।";
+  renderMachines();
 
  }catch(error){
   message.textContent="त्रुटि: "+error.message;
@@ -222,10 +211,12 @@ async function loadMachines(){
 }
 
 async function updateStatus(machine,status,reason){
+ if(!isAdmin)return;
  if(!confirm("क्या आप यह बदलाव करना चाहते हैं?"))return;
 
- const {data,error}=await supabase
-  .from("machines")
+ message.textContent="मशीन अपडेट हो रही है...";
+
+ const {data,error}=await supabase.from("machines")
   .update({
    approval_status:status,
    rejection_reason:reason,
@@ -237,6 +228,7 @@ async function updateStatus(machine,status,reason){
 
  if(error){
   alert("बदलाव नहीं हुआ: "+error.message);
+  message.textContent="अपडेट में त्रुटि।";
  }else if(!data){
   alert("मशीन अपडेट नहीं हुई। Admin RLS Policy जाँचें।");
  }else{
@@ -246,8 +238,19 @@ async function updateStatus(machine,status,reason){
 }
 
 document.getElementById("refresh").onclick=loadMachines;
+search.addEventListener("input",renderMachines);
+
+document.querySelectorAll("[data-filter]").forEach(button=>{
+ button.addEventListener("click",()=>{
+  currentFilter=button.dataset.filter;
+  document.querySelectorAll("[data-filter]").forEach(b=>{
+   b.classList.toggle("active",b===button);
+  });
+  renderMachines();
+ });
+});
+
 loadMachines();
 </script>
-
 </body>
 </html>
