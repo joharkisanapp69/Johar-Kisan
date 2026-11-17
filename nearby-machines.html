@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOHAR KISAN - Nearby Machines</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#edf5ed;color:#17351e}
+header{background:#176b35;color:white;padding:18px}
+main{max-width:850px;margin:auto;padding:15px}
+.card{background:white;padding:16px;margin:12px 0;border-radius:13px;box-shadow:0 2px 8px #0001}
+button,select{padding:12px;border:0;border-radius:8px;margin-top:10px;font-size:15px}
+button{background:#176b35;color:white;width:100%}
+select{width:100%;border:1px solid #ccd8cc;background:white}
+.gps{background:#245f9e}
+.machine{display:flex;gap:12px;flex-wrap:wrap}
+.machine img{width:110px;height:100px;object-fit:cover;border-radius:9px}
+.details{flex:1;min-width:170px}
+.price{color:#176b35;font-weight:bold}
+.small{font-size:13px;color:#607360;overflow-wrap:anywhere}
+#message{overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+
+<header>
+<h2>🌾 JOHAR KISAN</h2>
+<p>📍 Nearby Machine Search</p>
+</header>
+
+<main>
+<div class="card">
+<h3>अपने आसपास मशीन खोजें</h3>
+
+<button id="gpsBtn" class="gps">📍 मेरी लोकेशन प्राप्त करें</button>
+
+<p id="locationStatus" class="small">
+अभी GPS Location प्राप्त नहीं हुई है।
+</p>
+
+<label for="radius">कितनी दूरी तक खोजें?</label>
+<select id="radius">
+<option value="5">5 KM</option>
+<option value="10" selected>10 KM</option>
+<option value="20">20 KM</option>
+<option value="50">50 KM</option>
+</select>
+
+<button id="searchBtn" disabled>मशीनें खोजें</button>
+<p id="message" class="small"></p>
+</div>
+
+<div id="machineList"></div>
+
+<div class="card">
+<button onclick="location.href='dashboard.html'">Dashboard पर जाएँ</button>
+</div>
+</main>
+
+<script type="module">
+import {supabase} from "./supabase-config.js";
+
+const gpsBtn=document.getElementById("gpsBtn");
+const searchBtn=document.getElementById("searchBtn");
+const radius=document.getElementById("radius");
+const status=document.getElementById("locationStatus");
+const message=document.getElementById("message");
+const machineList=document.getElementById("machineList");
+
+let latitude=null;
+let longitude=null;
+
+function safe(value){
+ return String(value??"").replace(/[&<>"']/g,ch=>({
+  "&":"&amp;","<":"&lt;",">":"&gt;",
+  '"':"&quot;","'":"&#39;"
+ })[ch]);
+}
+
+gpsBtn.addEventListener("click",()=>{
+
+ if(!navigator.geolocation){
+  status.textContent="इस Browser में GPS उपलब्ध नहीं है।";
+  return;
+ }
+
+ gpsBtn.disabled=true;
+ gpsBtn.textContent="Location प्राप्त हो रही है...";
+
+ navigator.geolocation.getCurrentPosition(position=>{
+
+  latitude=position.coords.latitude;
+  longitude=position.coords.longitude;
+
+  status.textContent="✅ Location प्राप्त हो गई। Accuracy लगभग "+
+  Math.round(position.coords.accuracy)+" मीटर।";
+
+  searchBtn.disabled=false;
+  gpsBtn.disabled=false;
+  gpsBtn.textContent="लोकेशन फिर से प्राप्त करें";
+
+ },error=>{
+
+  latitude=null;
+  longitude=null;
+  searchBtn.disabled=true;
+
+  status.textContent=error.code===1
+   ?"Location Permission Allow करें।"
+   :"GPS Location प्राप्त नहीं हुई। दोबारा कोशिश करें।";
+
+  gpsBtn.disabled=false;
+  gpsBtn.textContent="📍 मेरी लोकेशन प्राप्त करें";
+
+ },{
+  enableHighAccuracy:false,
+  timeout:20000,
+  maximumAge:60000
+ });
+});
+
+searchBtn.addEventListener("click",loadNearbyMachines);
+
+async function loadNearbyMachines(){
+
+ if(latitude===null || longitude===null){
+  message.textContent="पहले GPS Location प्राप्त करें।";
+  return;
+ }
+
+ searchBtn.disabled=true;
+ message.textContent="नजदीकी मशीनें खोजी जा रही हैं...";
+ machineList.innerHTML="";
+
+ try{
+
+  const {data,error}=await supabase.rpc(
+   "search_nearby_machines",
+   {
+    p_latitude:latitude,
+    p_longitude:longitude,
+    p_radius_km:Number(radius.value)
+   }
+  );
+
+  if(error)throw error;
+
+  if(!data || data.length===0){
+   message.textContent="इस दूरी में कोई Approved मशीन नहीं मिली।";
+   return;
+  }
+
+  message.textContent="कुल "+data.length+" नजदीकी मशीनें मिलीं।";
+
+  data.forEach(machine=>{
+
+   const card=document.createElement("div");
+   card.className="card";
+
+   const photo=machine.photo_url
+    ?`<img src="${safe(machine.photo_url)}" alt="Machine">`
+    :`<div class="small">फोटो उपलब्ध नहीं</div>`;
+
+   card.innerHTML=`
+    <div class="machine">
+     ${photo}
+     <div class="details">
+      <h3>${safe(machine.machine_name)}</h3>
+      <p class="small">${safe(machine.category)}</p>
+      <p class="price">₹${safe(machine.price)} / ${safe(machine.price_unit)}</p>
+      <p class="small">
+       📍 ${safe(machine.village)}, ${safe(machine.district)}<br>
+       दूरी: ${safe(machine.distance_km)} KM
+      </p>
+     </div>
+    </div>
+   `;
+
+   machineList.appendChild(card);
+  });
+
+ }catch(error){
+  message.textContent="Search Error: "+error.message;
+ }finally{
+  searchBtn.disabled=false;
+ }
+}
+
+radius.addEventListener("change",()=>{
+ if(latitude!==null)loadNearbyMachines();
+});
+</script>
+
+</body>
+</html>
