@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JOHAR KISAN - Admin</title>
+
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial;background:#edf5ed;color:#17351e}
@@ -11,12 +12,12 @@ header{background:#176b35;color:white;padding:18px}
 main{max-width:700px;margin:auto;padding:14px}
 .card{background:white;padding:16px;border-radius:12px;margin:14px 0;box-shadow:0 2px 8px #0001}
 button{padding:11px;border:0;border-radius:8px;background:#176b35;color:white;margin:5px 3px;cursor:pointer}
-button:disabled{opacity:.6}
+button:disabled{opacity:.6;cursor:not-allowed}
 .reject{background:#a52d2d}
 img{width:100%;max-height:220px;object-fit:cover;border-radius:9px}
 textarea,input{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px}
 textarea{min-height:75px}
-#message{overflow-wrap:anywhere}
+#message,#docMessage{overflow-wrap:anywhere}
 .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:15px}
 .stat{background:#f1f7f0;border:1px solid #dce8dc;padding:14px;border-radius:10px}
 .stat strong{display:block;font-size:25px;color:#176b35;margin-top:6px}
@@ -24,16 +25,23 @@ textarea{min-height:75px}
 .admin-link{width:100%;padding:14px;margin:7px 0;font-size:15px;text-align:left}
 .filters{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}
 .filters button.active{background:#0b4320;outline:2px solid #8dbd91}
-.machine-card{border:1px solid #dce8dc;border-radius:10px;padding:13px;margin:13px 0}
-.machine-card h3{color:#176b35;overflow-wrap:anywhere}
+.machine-card,.doc-card{border:1px solid #dce8dc;border-radius:10px;padding:13px;margin:13px 0}
+.machine-card h3,.doc-card h3{color:#176b35;overflow-wrap:anywhere}
+.status{font-weight:bold;padding:5px 8px;border-radius:6px;background:#f1f7f0;display:inline-block;margin:5px 0}
+.doc-actions{display:flex;gap:8px;flex-wrap:wrap}
+.doc-actions button{flex:1;min-width:120px}
+.section-note{font-size:13px;color:#647664;line-height:1.5}
 </style>
 </head>
+
 <body>
 <header>
 <h2>🌾 JOHAR KISAN</h2>
 <p>Admin Dashboard</p>
 </header>
+
 <main>
+
 <div class="card">
 <h3>🛡️ Admin Controls</h3>
 <button class="admin-link" onclick="location.href='./dashboard.html'">🏠 Main Dashboard</button>
@@ -44,8 +52,21 @@ textarea{min-height:75px}
 </div>
 
 <div class="card">
+<h3>📄 Vehicle RC & Insurance Verification</h3>
+<p class="section-note">
+यहाँ Tractor/Vehicle की RC और Insurance जाँचें।
+Documents केवल Admin के लिए private रहेंगे।
+दोनों documents approve होने के बाद ही मशीन approve की जा सकेगी।
+</p>
+<button id="docRefresh">↻ Documents Refresh</button>
+<p id="docMessage">Documents लोड हो रहे हैं...</p>
+<div id="vehicleDocList"></div>
+</div>
+
+<div class="card">
 <h3>🛡️ Machine Approval Panel</h3>
 <button id="refresh">↻ Refresh</button>
+
 <div class="stats">
 <div class="stat">कुल मशीनें<strong id="totalCount">0</strong></div>
 <div class="stat">Pending<strong id="pendingCount">0</strong></div>
@@ -54,20 +75,24 @@ textarea{min-height:75px}
 <div class="stat">Active<strong id="activeCount">0</strong></div>
 <div class="stat">Inactive<strong id="inactiveCount">0</strong></div>
 </div>
+
 <p id="message">लोड हो रहा है...</p>
 </div>
 
 <div class="card">
 <h3>📋 Machine Listings</h3>
 <input id="search" type="search" placeholder="🔍 मशीन का नाम खोजें...">
+
 <div class="filters">
 <button class="active" data-filter="all">सभी</button>
 <button data-filter="pending">⏳ Pending</button>
 <button data-filter="approved">✅ Approved</button>
 <button data-filter="rejected">❌ Rejected</button>
 </div>
+
 <div id="machineList"></div>
 </div>
+
 </main>
 
 <script type="module">
@@ -76,12 +101,31 @@ import {supabase} from "./supabase-config.js";
 const message=document.getElementById("message");
 const list=document.getElementById("machineList");
 const search=document.getElementById("search");
+const docList=document.getElementById("vehicleDocList");
+const docMessage=document.getElementById("docMessage");
+
 let allMachines=[];
+let allVehicleDocs=[];
 let currentFilter="all";
 let isAdmin=false;
 
+function isVehicleCategory(category){
+ return ["tractor","vehicle","vehicles"].includes(
+  String(category||"").trim().toLowerCase()
+ );
+}
+
+function addText(parent,text,className="small"){
+ const p=document.createElement("p");
+ p.className=className;
+ p.textContent=text;
+ parent.appendChild(p);
+ return p;
+}
+
 function renderMachines(){
  list.innerHTML="";
+
  const term=search.value.trim().toLowerCase();
 
  const filtered=allMachines.filter(m=>{
@@ -101,7 +145,7 @@ function renderMachines(){
   card.className="machine-card";
 
   const title=document.createElement("h3");
-  title.textContent="🚜 "+machine.name;
+  title.textContent="🚜 "+(machine.name||"बिना नाम की मशीन");
   card.appendChild(title);
 
   if(machine.machine_photo_url){
@@ -122,18 +166,10 @@ function renderMachines(){
    "राज्य: "+(machine.state||"-"),
    "Approval: "+(machine.approval_status||"pending"),
    "Listing: "+(machine.is_active?"Active":"Inactive")
-  ].forEach(v=>{
-   const p=document.createElement("p");
-   p.className="small";
-   p.textContent=v;
-   card.appendChild(p);
-  });
+  ].forEach(v=>addText(card,v));
 
   if(machine.approval_status==="rejected"&&machine.rejection_reason){
-   const reason=document.createElement("p");
-   reason.className="small";
-   reason.textContent="Reject कारण: "+machine.rejection_reason;
-   card.appendChild(reason);
+   addText(card,"Reject कारण: "+machine.rejection_reason);
   }
 
   if(machine.approval_status==="pending"||machine.approval_status==="rejected"){
@@ -164,6 +200,160 @@ function renderMachines(){
  });
 }
 
+async function loadVehicleDocuments(){
+ docList.innerHTML="";
+ docMessage.textContent="Documents लोड हो रहे हैं...";
+
+ try{
+  const {data,error}=await supabase
+   .from("vehicle_documents")
+   .select("*")
+   .order("created_at",{ascending:false});
+
+  if(error)throw error;
+
+  allVehicleDocs=data||[];
+
+  if(!allVehicleDocs.length){
+   docMessage.textContent="अभी कोई RC/Insurance document जमा नहीं हुआ है।";
+   return;
+  }
+
+  docMessage.textContent="कुल "+allVehicleDocs.length+" vehicle document records मिले।";
+
+  for(const doc of allVehicleDocs){
+   const machine=allMachines.find(m=>m.id===doc.machine_id);
+
+   const card=document.createElement("div");
+   card.className="doc-card";
+
+   const heading=document.createElement("h3");
+   heading.textContent="🚜 "+(machine?.name||"Vehicle Listing");
+   card.appendChild(heading);
+
+   addText(card,"Machine ID: "+doc.machine_id);
+   addText(card,"Owner ID: "+doc.owner_id);
+   addText(card,"Verification Status: "+doc.verification_status,"status");
+
+   if(doc.rejection_reason){
+    addText(card,"Reject कारण: "+doc.rejection_reason);
+   }
+
+   const actions=document.createElement("div");
+   actions.className="doc-actions";
+
+   const rcButton=document.createElement("button");
+   rcButton.textContent="📄 RC खोलें";
+   rcButton.onclick=()=>openPrivateDocument(doc.rc_file_path);
+   actions.appendChild(rcButton);
+
+   const insuranceButton=document.createElement("button");
+   insuranceButton.textContent="📄 Insurance खोलें";
+   insuranceButton.onclick=()=>openPrivateDocument(doc.insurance_file_path);
+   actions.appendChild(insuranceButton);
+
+   card.appendChild(actions);
+
+   if(doc.verification_status==="pending"||doc.verification_status==="rejected"){
+    const reason=document.createElement("textarea");
+    reason.placeholder="Reject करने का कारण लिखें...";
+    if(doc.rejection_reason)reason.value=doc.rejection_reason;
+    card.appendChild(reason);
+
+    const approve=document.createElement("button");
+    approve.textContent="✓ Documents Approve";
+    approve.onclick=()=>updateDocumentStatus(doc,"approved","");
+    card.appendChild(approve);
+
+    const reject=document.createElement("button");
+    reject.textContent="✕ Documents Reject";
+    reject.className="reject";
+    reject.onclick=()=>{
+     if(!reason.value.trim()){
+      alert("Reject करने का कारण लिखें।");
+      return;
+     }
+     updateDocumentStatus(doc,"rejected",reason.value.trim());
+    };
+    card.appendChild(reject);
+   }
+
+   docList.appendChild(card);
+  }
+
+ }catch(error){
+  docMessage.textContent="Documents लोड करने में त्रुटि: "+error.message;
+ }
+}
+
+async function openPrivateDocument(path){
+ if(!isAdmin)return;
+
+ try{
+  const {data,error}=await supabase.storage
+   .from("vehicle-documents")
+   .createSignedUrl(path,60);
+
+  if(error)throw error;
+  if(!data?.signedUrl)throw new Error("Private document link नहीं मिला।");
+
+  window.open(data.signedUrl,"_blank","noopener,noreferrer");
+
+ }catch(error){
+  alert("Document खोलने में समस्या: "+error.message);
+ }
+}
+
+async function updateDocumentStatus(doc,status,reason){
+ if(!isAdmin)return;
+
+ const confirmText=status==="approved"
+  ?"क्या आप RC/Insurance document approve करना चाहते हैं?"
+  :"क्या आप इस document को reject करना चाहते हैं?";
+
+ if(!confirm(confirmText))return;
+
+ docMessage.textContent="Document verification अपडेट हो रहा है...";
+
+ try{
+  const {data,error}=await supabase
+   .from("vehicle_documents")
+   .update({
+    verification_status:status,
+    rejection_reason:reason||null,
+    updated_at:new Date().toISOString()
+   })
+   .eq("id",doc.id)
+   .select("id,verification_status")
+   .maybeSingle();
+
+  if(error)throw error;
+  if(!data)throw new Error("Update नहीं हुआ। Admin permission जाँचें।");
+
+  if(status==="rejected"){
+   const {error:machineError}=await supabase
+    .from("machines")
+    .update({
+     approval_status:"rejected",
+     rejection_reason:"RC/Insurance verification rejected: "+reason,
+     is_active:false
+    })
+    .eq("id",doc.machine_id);
+
+   if(machineError){
+    alert("Document reject हुआ, लेकिन machine status update नहीं हुआ: "+machineError.message);
+   }
+  }
+
+  alert("Document status अपडेट हो गया: "+status);
+  await loadMachines();
+
+ }catch(error){
+  alert("Document update में त्रुटि: "+error.message);
+  docMessage.textContent="Update में त्रुटि।";
+ }
+}
+
 async function loadMachines(){
  list.innerHTML="";
  message.textContent="मशीनें लोड हो रही हैं...";
@@ -174,22 +364,26 @@ async function loadMachines(){
   if(!authData.user)throw new Error("पहले Login करें।");
 
   const {data:profile,error:profileError}=await supabase
-   .from("profiles").select("is_admin")
-   .eq("id",authData.user.id).single();
+   .from("profiles")
+   .select("is_admin")
+   .eq("id",authData.user.id)
+   .single();
 
   if(profileError)throw profileError;
   if(!profile?.is_admin)throw new Error("आपको Admin अनुमति नहीं है।");
 
   isAdmin=true;
 
-  const {data,error}=await supabase.from("machines")
-   .select("*").order("created_at",{ascending:false});
+  const {data,error}=await supabase
+   .from("machines")
+   .select("*")
+   .order("created_at",{ascending:false});
 
   if(error)throw error;
 
   allMachines=data||[];
 
-  const pending=allMachines.filter(m=>m.approval_status==="pending");
+  const pending=allMachines.filter(m=>(m.approval_status||"pending")==="pending");
   const approved=allMachines.filter(m=>m.approval_status==="approved");
   const rejected=allMachines.filter(m=>m.approval_status==="rejected");
   const active=allMachines.filter(m=>m.is_active===true);
@@ -203,49 +397,76 @@ async function loadMachines(){
   document.getElementById("inactiveCount").textContent=inactive.length;
 
   message.textContent="कुल "+allMachines.length+" मशीनें मिलीं।";
+
   renderMachines();
+  await loadVehicleDocuments();
 
  }catch(error){
+  isAdmin=false;
   message.textContent="त्रुटि: "+error.message;
+  docMessage.textContent="Admin verification के बाद documents दिखेंगे।";
  }
 }
 
 async function updateStatus(machine,status,reason){
  if(!isAdmin)return;
+
+ // Tractor/Vehicle approval से पहले दोनों documents approved होने जरूरी हैं।
+ if(status==="approved"&&isVehicleCategory(machine.category)){
+  const docs=allVehicleDocs.find(d=>d.machine_id===machine.id);
+
+  if(!docs){
+   alert("इस Tractor/Vehicle के RC और Insurance documents जमा नहीं हैं। Machine approve नहीं हो सकती।");
+   return;
+  }
+
+  if(docs.verification_status!=="approved"){
+   alert("पहले RC और Insurance documents को approve करें। अभी document status: "+docs.verification_status);
+   return;
+  }
+ }
+
  if(!confirm("क्या आप यह बदलाव करना चाहते हैं?"))return;
 
  message.textContent="मशीन अपडेट हो रही है...";
 
- const {data,error}=await supabase.from("machines")
-  .update({
-   approval_status:status,
-   rejection_reason:reason,
-   is_active:status==="approved"
-  })
-  .eq("id",machine.id)
-  .select("id,approval_status,is_active")
-  .maybeSingle();
+ try{
+  const {data,error}=await supabase
+   .from("machines")
+   .update({
+    approval_status:status,
+    rejection_reason:reason,
+    is_active:status==="approved"
+   })
+   .eq("id",machine.id)
+   .select("id,approval_status,is_active")
+   .maybeSingle();
 
- if(error){
-  alert("बदलाव नहीं हुआ: "+error.message);
-  message.textContent="अपडेट में त्रुटि।";
- }else if(!data){
-  alert("मशीन अपडेट नहीं हुई। Admin RLS Policy जाँचें।");
- }else{
+  if(error)throw error;
+  if(!data)throw new Error("मशीन अपडेट नहीं हुई। Admin RLS Policy जाँचें।");
+
   alert("मशीन की स्थिति अपडेट हो गई: "+data.approval_status);
   await loadMachines();
+
+ }catch(error){
+  alert("बदलाव नहीं हुआ: "+error.message);
+  message.textContent="अपडेट में त्रुटि।";
  }
 }
 
 document.getElementById("refresh").onclick=loadMachines;
+document.getElementById("docRefresh").onclick=loadMachines;
+
 search.addEventListener("input",renderMachines);
 
 document.querySelectorAll("[data-filter]").forEach(button=>{
  button.addEventListener("click",()=>{
   currentFilter=button.dataset.filter;
+
   document.querySelectorAll("[data-filter]").forEach(b=>{
    b.classList.toggle("active",b===button);
   });
+
   renderMachines();
  });
 });
